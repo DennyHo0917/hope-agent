@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::helpers::{
-    build_search_client, google_date_restrict, read_json_capped, read_text_capped,
+    build_search_client, google_date_restrict, read_json_capped, request_error, status_error,
     JSON_RESPONSE_BYTE_CAP,
 };
 use super::{SearchParams, SearchResult};
@@ -43,17 +43,10 @@ pub(super) async fn search_google(
         .get(&url)
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("Google Custom Search request failed: {}", e))?;
+        .map_err(|error| request_error("Google Custom Search", error))?;
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = read_text_capped(resp, JSON_RESPONSE_BYTE_CAP)
-            .await
-            .unwrap_or_default();
-        return Err(anyhow::anyhow!(
-            "Google Custom Search failed ({}): {}",
-            status,
-            text
-        ));
+        return Err(status_error("Google Custom Search", status));
     }
     let data = read_json_capped(resp, JSON_RESPONSE_BYTE_CAP, "Google Custom Search").await?;
     let items = data.get("items").and_then(|v| v.as_array());

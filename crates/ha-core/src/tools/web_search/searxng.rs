@@ -1,7 +1,10 @@
 use anyhow::Result;
 use serde_json::Value;
 
-use super::helpers::{build_search_client_for_url, read_text_capped, JSON_RESPONSE_BYTE_CAP};
+use super::helpers::{
+    build_search_client_for_url, read_text_capped, request_error, status_error,
+    JSON_RESPONSE_BYTE_CAP,
+};
 use super::{SearchParams, SearchResult};
 
 pub(super) async fn search_searxng(
@@ -23,39 +26,31 @@ pub(super) async fn search_searxng(
     if let Some(ref freshness) = params.freshness {
         url.push_str(&format!("&time_range={}", urlencoding::encode(freshness)));
     }
-    app_info!("tool", "web_search", "SearXNG request URL: {}", url);
     let resp = client
         .get(&url)
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("SearXNG request failed (url={}): {}", url, e))?;
+        .map_err(|error| request_error("SearXNG", error))?;
     if !resp.status().is_success() {
         let status = resp.status();
-        let body = read_text_capped(resp, JSON_RESPONSE_BYTE_CAP)
-            .await
-            .unwrap_or_default();
-        let preview = crate::truncate_utf8(&body, 1024);
         app_warn!(
             "tool",
             "web_search",
-            "SearXNG failed with status {}: {}",
-            status,
-            preview
+            "SearXNG request failed with HTTP {}",
+            status.as_u16()
         );
-        return Err(anyhow::anyhow!("SearXNG failed with status: {}", status));
+        return Err(status_error("SearXNG", status));
     }
     let body_text = read_text_capped(resp, JSON_RESPONSE_BYTE_CAP)
         .await
         .map_err(|e| anyhow::anyhow!("SearXNG response read failed: {}", e))?;
     let body: Value = serde_json::from_str(&body_text).map_err(|e| {
-        let preview = crate::truncate_utf8(&body_text, 2048);
         app_warn!(
             "tool",
             "web_search",
-            "SearXNG JSON parse failed: {}. Raw response ({}B):\n{}",
+            "SearXNG JSON parse failed: {} ({}B response)",
             e,
-            body_text.len(),
-            preview
+            body_text.len()
         );
         anyhow::anyhow!("SearXNG JSON parse failed: {}", e)
     })?;
@@ -92,13 +87,11 @@ pub(super) async fn search_searxng(
             .collect()
     });
     if parsed.is_empty() {
-        let preview = crate::truncate_utf8(&body_text, 2048);
         app_warn!(
             "tool",
             "web_search",
-            "SearXNG returned 0 results. Raw JSON ({}B):\n{}",
-            body_text.len(),
-            preview
+            "SearXNG returned 0 results ({}B response)",
+            body_text.len()
         );
     }
     Ok(parsed)

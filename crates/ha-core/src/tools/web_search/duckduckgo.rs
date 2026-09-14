@@ -3,7 +3,7 @@ use serde_json::Value;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::helpers::{
-    html_decode, read_text_capped, strip_html_tags, DEFAULT_WEB_FETCH_USER_AGENT,
+    html_decode, read_text_capped, request_error, strip_html_tags, DEFAULT_WEB_FETCH_USER_AGENT,
     HTML_RESPONSE_BYTE_CAP, JSON_RESPONSE_BYTE_CAP,
 };
 use super::{SearchResult, DEFAULT_WEB_SEARCH_TIMEOUT_SECS};
@@ -88,12 +88,7 @@ pub(super) async fn search_duckduckgo(
     };
 
     if results.is_empty() && instant.is_none() {
-        app_warn!(
-            "tool",
-            "web_search",
-            "DDG all endpoints returned 0 results for query: {}",
-            query
-        );
+        app_warn!("tool", "web_search", "DDG all endpoints returned 0 results");
     }
 
     // 3. Prepend instant answer if we got one and it's useful
@@ -168,7 +163,11 @@ async fn ddg_instant_answer(client: &reqwest::Client, query: &str) -> Option<Sea
 
     if !abstract_text.is_empty() && !abstract_url.is_empty() {
         return Some(SearchResult {
-            title: format!("{} ({})", query, abstract_source),
+            title: if abstract_source.is_empty() {
+                "Instant Answer".to_string()
+            } else {
+                format!("Instant Answer ({abstract_source})")
+            },
             url: abstract_url.to_string(),
             snippet: abstract_text.chars().take(300).collect(),
             source: "DuckDuckGo".into(),
@@ -179,7 +178,7 @@ async fn ddg_instant_answer(client: &reqwest::Client, query: &str) -> Option<Sea
     let answer = data.get("Answer").and_then(|v| v.as_str()).unwrap_or("");
     if !answer.is_empty() {
         return Some(SearchResult {
-            title: format!("{} — Instant Answer", query),
+            title: "Instant Answer".to_string(),
             url: String::new(),
             snippet: answer.to_string(),
             source: "DuckDuckGo".into(),
@@ -201,7 +200,7 @@ async fn ddg_html_search(
         .form(&[("q", query), ("b", ""), ("kl", "")])
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("DuckDuckGo HTML request failed: {}", e))?;
+        .map_err(|error| request_error("DuckDuckGo HTML", error))?;
     let status = resp.status();
     // DDG returns 202 when rate-limited
     if status == reqwest::StatusCode::ACCEPTED {
@@ -239,14 +238,11 @@ async fn ddg_html_search(
 
     let results = parse_ddg_results(&html, count);
     if results.is_empty() {
-        let preview = crate::truncate_utf8(&html, 2048);
         app_warn!(
             "tool",
             "web_search",
-            "DDG HTML parsed 0 results, raw response ({}B, preview {}B):\n{}",
-            html.len(),
-            preview.len(),
-            preview
+            "DDG HTML parsed 0 results ({}B response)",
+            html.len()
         );
     }
     Ok(results)
@@ -266,7 +262,7 @@ async fn ddg_lite_search(
         .get(&url)
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("DuckDuckGo Lite request failed: {}", e))?;
+        .map_err(|error| request_error("DuckDuckGo Lite", error))?;
     if !resp.status().is_success() {
         return Err(anyhow::anyhow!(
             "DuckDuckGo Lite failed with status: {}",
@@ -278,14 +274,11 @@ async fn ddg_lite_search(
         .map_err(|e| anyhow::anyhow!("Failed to read DDG Lite response: {}", e))?;
     let results = parse_ddg_lite_results(&html, count);
     if results.is_empty() {
-        let preview = crate::truncate_utf8(&html, 2048);
         app_warn!(
             "tool",
             "web_search",
-            "DDG Lite parsed 0 results, raw response ({}B, preview {}B):\n{}",
-            html.len(),
-            preview.len(),
-            preview
+            "DDG Lite parsed 0 results ({}B response)",
+            html.len()
         );
     }
     Ok(results)
