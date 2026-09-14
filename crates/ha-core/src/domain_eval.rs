@@ -32,6 +32,7 @@ const DEFAULT_DOMAIN_EVAL_CAMPAIGN_TASKS: usize = 5;
 const MAX_DOMAIN_EVAL_CAMPAIGN_TASKS: usize = 15;
 const MAX_DOMAIN_EVAL_CAMPAIGN_MODELS: usize = 8;
 pub const DEFAULT_MIN_AVERAGE_SCORE: f64 = 0.8;
+const SEMANTIC_EVIDENCE_CONTRACT_VERSION: &str = "1.1.0";
 const DOMAIN_EVAL_SOURCE_LIVE: &str = "live";
 pub const DOMAIN_EVAL_SOURCE_FIXTURE_TRACE: &str = "fixture_trace";
 pub const DOMAIN_EVAL_SOURCE_FIXTURE_AGENT: &str = "fixture_agent";
@@ -3406,10 +3407,20 @@ impl SessionDB {
         let mut checks = Vec::new();
         let mut satisfied_required = 0usize;
         let mut missing_required = 0usize;
+        let semantic_evidence_contract = uses_semantic_evidence_contract(task.version.as_str());
         for req in &task.required_evidence {
-            let actual = counts.get(&req.evidence_type).copied().unwrap_or(0);
-            let has_metadata = evidence_metadata_satisfied(&evidence, req);
-            let passed = actual >= req.min_count && has_metadata;
+            let (matching, valid) =
+                evidence_requirement_counts(&evidence, req, semantic_evidence_contract);
+            let actual = if semantic_evidence_contract {
+                valid
+            } else {
+                matching
+            };
+            let passed = if semantic_evidence_contract {
+                valid >= req.min_count
+            } else {
+                matching >= req.min_count && (req.metadata_keys.is_empty() || valid > 0)
+            };
             if req.required {
                 if passed {
                     satisfied_required += 1;
@@ -3431,7 +3442,11 @@ impl SessionDB {
                 weight: if req.required { 1.0 } else { 0.5 },
                 score: if passed { 1.0 } else { 0.0 },
                 expected: format!("{} item(s) with {:?}", req.min_count, req.metadata_keys),
-                actual: format!("{actual} item(s)"),
+                actual: if semantic_evidence_contract {
+                    format!("{valid} valid item(s) from {matching} matching item(s)")
+                } else {
+                    format!("{actual} item(s)")
+                },
                 detail: req.title.clone(),
             });
         }
@@ -4437,7 +4452,7 @@ fn task(
 ) -> DomainEvalTask {
     DomainEvalTask {
         id: id.to_string(),
-        version: "1.0.0".to_string(),
+        version: SEMANTIC_EVIDENCE_CONTRACT_VERSION.to_string(),
         domain: normalize_domain(domain),
         title: title.to_string(),
         task_type: task_type.to_string(),
@@ -4460,7 +4475,7 @@ fn task(
         calibration: vec![DomainEvalCalibrationRecord {
             id: None,
             task_id: Some(id.to_string()),
-            task_version: Some("1.0.0".to_string()),
+            task_version: Some(SEMANTIC_EVIDENCE_CONTRACT_VERSION.to_string()),
             domain: Some(normalize_domain(domain)),
             project_id: None,
             scope: Some("built_in".to_string()),
@@ -5055,25 +5070,85 @@ fn evidence_counts_by_type(
     counts
 }
 
-fn evidence_metadata_satisfied(
-    evidence: &[crate::domain_workflow::DomainEvidenceItem],
+fn evidence_item_metadata_satisfied(
+    item: &crate::domain_workflow::DomainEvidenceItem,
     req: &DomainEvalEvidenceRequirement,
+    semantic_contract: bool,
 ) -> bool {
     if req.metadata_keys.is_empty() {
         return true;
     }
+    req.metadata_keys.iter().all(|key| {
+        item.source_metadata.get(key).is_some_and(|value| {
+            !semantic_contract || evidence_metadata_value_is_usable(key, value)
+        })
+    })
+}
+
+fn evidence_requirement_counts(
+    evidence: &[crate::domain_workflow::DomainEvidenceItem],
+    req: &DomainEvalEvidenceRequirement,
+    semantic_contract: bool,
+) -> (usize, usize) {
     let matching = evidence
         .iter()
         .filter(|item| item.evidence_type == req.evidence_type)
         .collect::<Vec<_>>();
-    if matching.is_empty() {
-        return false;
+    let valid = matching
+        .iter()
+        .filter(|item| evidence_item_metadata_satisfied(item, req, semantic_contract))
+        .count();
+    (matching.len(), valid)
+}
+
+fn evidence_metadata_value_is_usable(key: &str, value: &Value) -> bool {
+    if matches!(
+        key,
+        "issues" | "duplicates" | "gaps" | "checks" | "attendees"
+    ) {
+        return value.is_array();
     }
-    matching.iter().any(|item| {
-        req.metadata_keys
-            .iter()
-            .all(|key| item.source_metadata.get(key).is_some())
-    })
+    if matches!(
+        key,
+        "path"
+            | "version"
+            | "audience"
+            | "uri"
+            | "retrievedAt"
+            | "publishedAt"
+            | "date"
+            | "claim"
+            | "verdict"
+            | "coverage"
+            | "dataset"
+            | "decision"
+            | "approvedBy"
+            | "event"
+            | "artifact"
+            | "metric"
+    ) {
+        return value.as_str().is_some_and(|value| !value.trim().is_empty());
+    }
+    match value {
+        Value::Null => false,
+        Value::String(value) => !value.trim().is_empty(),
+        Value::Array(_) | Value::Bool(_) | Value::Number(_) => true,
+        Value::Object(value) => !value.is_empty(),
+    }
+}
+
+fn uses_semantic_evidence_contract(version: &str) -> bool {
+    let core = version
+        .trim()
+        .trim_start_matches(['v', 'V'])
+        .split(['-', '+'])
+        .next()
+        .unwrap_or_default();
+    let parts = core
+        .split('.')
+        .map(str::parse::<u64>)
+        .collect::<std::result::Result<Vec<_>, _>>();
+    matches!(parts.as_deref(), Ok([major, minor, patch]) if (*major, *minor, *patch) >= (1, 1, 0))
 }
 
 fn dated_source_count(evidence: &[crate::domain_workflow::DomainEvidenceItem]) -> usize {
@@ -5598,6 +5673,28 @@ mod tests {
 mod contract_tests {
     use super::*;
 
+    fn evidence(
+        evidence_type: &str,
+        source_metadata: Value,
+    ) -> crate::domain_workflow::DomainEvidenceItem {
+        crate::domain_workflow::DomainEvidenceItem {
+            id: uuid::Uuid::new_v4().to_string(),
+            goal_id: None,
+            session_id: "session".to_string(),
+            project_id: None,
+            domain: "writing".to_string(),
+            evidence_type: evidence_type.to_string(),
+            title: "fixture".to_string(),
+            summary: None,
+            source_metadata,
+            confidence: None,
+            access_scope: "session".to_string(),
+            redaction_status: "none".to_string(),
+            created_at: "2026-09-14T00:00:00Z".to_string(),
+            updated_at: "2026-09-14T00:00:00Z".to_string(),
+        }
+    }
+
     #[test]
     fn built_in_pack_keeps_five_domains_and_fifteen_cases() {
         let tasks = built_in_domain_eval_tasks();
@@ -5607,5 +5704,70 @@ mod contract_tests {
             .collect::<BTreeSet<_>>();
         assert_eq!(tasks.len(), 15);
         assert_eq!(domains.len(), 5);
+        assert!(tasks
+            .iter()
+            .all(|task| task.version == SEMANTIC_EVIDENCE_CONTRACT_VERSION));
+    }
+
+    #[test]
+    fn semantic_evidence_contract_counts_each_valid_item() {
+        let requirement = req(
+            "artifact_created",
+            "Two versioned artifacts",
+            true,
+            2,
+            &["path", "version"],
+        );
+        let evidence = vec![
+            evidence(
+                "artifact_created",
+                json!({"path": "/tmp/report.md", "version": "v2"}),
+            ),
+            evidence("artifact_created", json!({"path": null, "version": "v2"})),
+        ];
+
+        assert_eq!(
+            evidence_requirement_counts(&evidence, &requirement, true),
+            (2, 1)
+        );
+        assert_eq!(
+            evidence_requirement_counts(&evidence, &requirement, false),
+            (2, 2),
+            "version 1.0 keeps the historical key-presence behavior"
+        );
+    }
+
+    #[test]
+    fn semantic_metadata_accepts_empty_issues_but_rejects_null_and_wrong_types() {
+        let requirement = req(
+            "artifact_reviewed",
+            "Audience review",
+            true,
+            1,
+            &["audience", "issues"],
+        );
+        assert!(evidence_item_metadata_satisfied(
+            &evidence(
+                "artifact_reviewed",
+                json!({"audience": "leadership", "issues": []}),
+            ),
+            &requirement,
+            true,
+        ));
+        for metadata in [
+            json!({"audience": "leadership", "issues": null}),
+            json!({"audience": "", "issues": []}),
+            json!({"audience": [], "issues": []}),
+        ] {
+            assert!(!evidence_item_metadata_satisfied(
+                &evidence("artifact_reviewed", metadata),
+                &requirement,
+                true,
+            ));
+        }
+        assert!(evidence_metadata_value_is_usable("flag", &json!(false)));
+        assert!(evidence_metadata_value_is_usable("ordinal", &json!(0)));
+        assert!(uses_semantic_evidence_contract("1.1.0"));
+        assert!(!uses_semantic_evidence_contract("1.0.0"));
     }
 }

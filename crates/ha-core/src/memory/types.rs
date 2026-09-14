@@ -390,9 +390,12 @@ impl ExternalMemoryProviderHealth {
             // An unverified endpoint is allowed to perform pull-only sync so
             // owners can inspect imported candidates. Any policy capable of
             // sending local memory remains fail-closed until a compatible
-            // version has been observed explicitly.
+            // version has been observed explicitly. OpenViking is stricter:
+            // 0.4.17 changed the current-user URI, so even pull cannot choose
+            // an identity path safely without version evidence.
             ExternalMemoryProviderCompatibilityStatus::Unverified => {
-                matches!(config.sync_policy, ExternalMemorySyncPolicy::PullOnly)
+                config.kind != ExternalMemoryProviderKind::OpenViking
+                    && matches!(config.sync_policy, ExternalMemorySyncPolicy::PullOnly)
             }
             ExternalMemoryProviderCompatibilityStatus::Blocked => false,
         };
@@ -715,7 +718,8 @@ fn external_provider_sync_block_reasons(
         if endpoint_ready {
             match compatibility_status {
                 ExternalMemoryProviderCompatibilityStatus::Unverified
-                    if !matches!(config.sync_policy, ExternalMemorySyncPolicy::PullOnly) =>
+                    if config.kind == ExternalMemoryProviderKind::OpenViking
+                        || !matches!(config.sync_policy, ExternalMemorySyncPolicy::PullOnly) =>
                 {
                     reasons.push(ExternalMemoryProviderSyncBlockReason::CompatibilityUnverified);
                 }
@@ -2135,6 +2139,45 @@ mod tests {
         assert!(push_only.sends_local_memory);
         assert!(!push_only.imports_external_memory);
         assert!(push_only.automatic_sync);
+    }
+
+    #[test]
+    fn open_viking_requires_version_evidence_even_for_pull_only() {
+        let provider = ExternalMemoryProviderConfig {
+            id: "open-viking-main".to_string(),
+            kind: ExternalMemoryProviderKind::OpenViking,
+            display_name: "OpenViking".to_string(),
+            enabled: true,
+            sync_policy: ExternalMemorySyncPolicy::PullOnly,
+            endpoint_configured: true,
+            last_sync_at: None,
+            last_error: None,
+        };
+        let capabilities = external_provider_capabilities(provider.kind);
+        let compatibility = ExternalMemoryProviderCompatibilityReport {
+            provider_id: provider.id.clone(),
+            kind: provider.kind,
+            status: ExternalMemoryProviderCompatibilityStatus::Unverified,
+            checked_at: String::new(),
+            external_io_performed: false,
+            detected_version: None,
+            minimum_version: Some("0.4.15".to_string()),
+            recommended_version: Some("0.4.17.1".to_string()),
+            capabilities: Vec::new(),
+            error: None,
+        };
+
+        let health = ExternalMemoryProviderHealth::from_config_with_capabilities_and_compatibility(
+            &provider,
+            true,
+            capabilities,
+            compatibility,
+        );
+
+        assert!(!health.runtime_sync_enabled);
+        assert!(health
+            .sync_block_reasons
+            .contains(&ExternalMemoryProviderSyncBlockReason::CompatibilityUnverified));
     }
 
     #[test]

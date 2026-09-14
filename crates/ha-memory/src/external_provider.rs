@@ -137,6 +137,7 @@ struct ParsedVersion {
     major: u64,
     minor: u64,
     patch: u64,
+    revision: u64,
     prerelease: bool,
 }
 
@@ -899,7 +900,7 @@ fn compatibility_requirement(
         }
         ExternalMemoryProviderKind::OpenViking => Some(VersionRequirement {
             minimum: "0.4.15",
-            recommended: "0.4.15",
+            recommended: "0.4.17.1",
         }),
         _ => None,
     }
@@ -952,7 +953,7 @@ fn detect_provider_version(body: &[u8], version_headers: &[String]) -> Option<St
 
 fn extract_version(value: &str) -> Option<String> {
     static VERSION_RE: Lazy<regex::Regex> = Lazy::new(|| {
-        regex::Regex::new(r"(?i)\bv?(\d+)\.(\d+)\.(\d+)(?:[-+][0-9a-z.-]+)?\b")
+        regex::Regex::new(r"(?i)\bv?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?(?:[-+][0-9a-z.-]+)?\b")
             .expect("valid provider version regex")
     });
     VERSION_RE
@@ -962,7 +963,7 @@ fn extract_version(value: &str) -> Option<String> {
 
 fn parse_version(value: &str) -> Option<ParsedVersion> {
     static VERSION_RE: Lazy<regex::Regex> = Lazy::new(|| {
-        regex::Regex::new(r"(?i)^v?(\d+)\.(\d+)\.(\d+)([-+][0-9a-z.-]+)?$")
+        regex::Regex::new(r"(?i)^v?(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?([-+][0-9a-z.-]+)?$")
             .expect("valid exact provider version regex")
     });
     let captures = VERSION_RE.captures(value.trim())?;
@@ -970,8 +971,12 @@ fn parse_version(value: &str) -> Option<ParsedVersion> {
         major: captures.get(1)?.as_str().parse().ok()?,
         minor: captures.get(2)?.as_str().parse().ok()?,
         patch: captures.get(3)?.as_str().parse().ok()?,
-        prerelease: captures
+        revision: captures
             .get(4)
+            .map_or(Ok(0), |value| value.as_str().parse())
+            .ok()?,
+        prerelease: captures
+            .get(5)
             .is_some_and(|suffix| suffix.as_str().starts_with('-')),
     })
 }
@@ -980,8 +985,18 @@ fn version_meets_minimum(detected: &str, minimum: &str) -> bool {
     let (Some(detected), Some(minimum)) = (parse_version(detected), parse_version(minimum)) else {
         return false;
     };
-    let detected_core = (detected.major, detected.minor, detected.patch);
-    let minimum_core = (minimum.major, minimum.minor, minimum.patch);
+    let detected_core = (
+        detected.major,
+        detected.minor,
+        detected.patch,
+        detected.revision,
+    );
+    let minimum_core = (
+        minimum.major,
+        minimum.minor,
+        minimum.patch,
+        minimum.revision,
+    );
     detected_core > minimum_core || (detected_core == minimum_core && !detected.prerelease)
 }
 
@@ -1036,11 +1051,38 @@ pub fn external_memory_provider_compatibility_snapshot(
                     chrono::Utc::now(),
                 ) =>
         {
-            stored.report
+            let mut report = stored.report;
+            report.recommended_version =
+                current_requirement.map(|item| item.recommended.to_string());
+            report
         }
         Ok(_) => default_compatibility_report(provider, None),
         Err(error) => default_compatibility_report(provider, Some(&error)),
     }
+}
+
+/// Resolve the version evidence already granted by the owner connection test.
+/// Sync adapters use this instead of probing or selecting a wire contract from
+/// a remote error. The file and credential reads stay off the async executor.
+pub(super) async fn compatible_provider_version_for_sync(
+    provider: ExternalMemoryProviderConfig,
+) -> Result<String> {
+    ha_core::blocking::run_blocking(move || {
+        let report = external_memory_provider_compatibility_snapshot(&provider);
+        if report.status != ExternalMemoryProviderCompatibilityStatus::Compatible {
+            bail!(
+                "{} compatibility is not verified for sync",
+                provider.display_name
+            );
+        }
+        report.detected_version.ok_or_else(|| {
+            anyhow!(
+                "{} compatibility report omitted the detected version",
+                provider.display_name
+            )
+        })
+    })
+    .await
 }
 
 fn compatibility_report_is_current(
@@ -2209,6 +2251,11 @@ mod tests {
         assert!(!version_meets_minimum("0.28.2-rc.1", "0.28.2"));
         assert!(version_meets_minimum("0.28.2", "0.28.2"));
         assert!(version_meets_minimum("0.29.3", "0.28.2"));
+        assert!(version_meets_minimum("0.4.17.1", "0.4.17"));
+        assert_eq!(
+            extract_version("OpenViking/0.4.17.1"),
+            Some("0.4.17.1".to_string())
+        );
     }
 
     #[test]
