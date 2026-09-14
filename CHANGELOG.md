@@ -7,14 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.48.0] - 2026-09-15
+
 ### Changed
 
-- **构建基线升级到 Node.js 24**：CI、发布任务与 Docker 前端构建统一使用 Node.js 24 LTS，停止依赖已结束维护的 Node.js 20。
+- **构建基线升级到 Node.js 24**：CI、发布任务与 Docker 前端构建统一使用 Node.js 24 LTS，停止依赖已结束维护的 Node.js 20。 (#723)
 
 ### Fixed
 
-- **网页采集与搜索隐私边界收紧**：Knowledge URL / 远程媒体在每次重定向前完整执行异步 DNS/SSRF 检查；Web Search 日志、错误与用量诊断不再记录查询、请求 URL 或上游响应正文。
-- **外部记忆与领域证据兼容更可靠**：OpenViking 按已验证服务端版本选择 0.4.17 前后的当前用户 URI，未知版本停止同步；领域评测 `1.1.0` 按字段语义逐条统计有效证据，空值或错类型不再凑足完成数量。
+- **网页采集与搜索隐私边界收紧**：Knowledge URL / 远程媒体在每次重定向前完整执行异步 DNS/SSRF 检查；Web Search 日志、错误与用量诊断不再记录查询、请求 URL 或上游响应正文。 (#723)
+- **外部记忆与领域证据兼容更可靠**：OpenViking 按已验证服务端版本选择 0.4.17 前后的当前用户 URI，未知版本停止同步；领域评测 `1.1.0` 按字段语义逐条统计有效证据，空值或错类型不再凑足完成数量。 (#723)
 
 ## [0.47.0] - 2026-09-09
 
