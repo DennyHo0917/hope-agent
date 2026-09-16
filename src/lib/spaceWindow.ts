@@ -180,17 +180,11 @@ async function createDetachedSpaceWindow(
     const rendererReadyPromise = new Promise<boolean>((resolve) => {
       resolveRendererReady = resolve
     })
-    stopReadyListener = await listen<SpaceWindowReadyPayload>(
-      SPACE_WINDOW_READY_EVENT,
-      (event) => {
-        if (
-          event.payload?.space === target.space &&
-          event.payload.readyToken === readyToken
-        ) {
-          resolveRendererReady(true)
-        }
-      },
-    )
+    stopReadyListener = await listen<SpaceWindowReadyPayload>(SPACE_WINDOW_READY_EVENT, (event) => {
+      if (event.payload?.space === target.space && event.payload.readyToken === readyToken) {
+        resolveRendererReady(true)
+      }
+    })
 
     const webview = new WebviewWindow(label, {
       url: spaceWindowUrl(target, readyToken),
@@ -244,12 +238,9 @@ async function createDetachedSpaceWindow(
     stopReadyListener()
     stopReadyListener = null
     if (!rendererReady) {
-      logger.error(
-        "ui",
-        "spaceWindow::open",
-        "Detached space renderer did not become ready",
-        { space: target.space },
-      )
+      logger.error("ui", "spaceWindow::open", "Detached space renderer did not become ready", {
+        space: target.space,
+      })
       await webview.close().catch(() => undefined)
       return null
     }
@@ -310,7 +301,6 @@ export function readSpaceWindowLocation(params: URLSearchParams): SpaceWindowLoc
 
 export async function focusMainWindow(): Promise<void> {
   if (!isTauriMode()) return
-  const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow")
-  const main = await WebviewWindow.getByLabel("main")
-  if (main) await focusWindow(main)
+  const { emit } = await import("@tauri-apps/api/event")
+  await emit("main-window:show")
 }
