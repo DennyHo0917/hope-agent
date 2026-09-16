@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::Value;
 
 use super::helpers::{
-    build_search_client, read_json_capped, read_text_capped, JSON_RESPONSE_BYTE_CAP,
+    build_search_client, read_json_capped, request_error, status_error, JSON_RESPONSE_BYTE_CAP,
 };
 use super::{record_llm_web_search_usage, SearchResult, WebSearchUsageContext};
 
@@ -37,6 +37,7 @@ pub(super) async fn search_grok(
     {
         Ok(resp) => resp,
         Err(e) => {
+            let error = request_error("Grok", e);
             record_llm_web_search_usage(
                 usage_ctx,
                 "web_search.grok",
@@ -45,17 +46,15 @@ pub(super) async fn search_grok(
                 MODEL_ID,
                 started.elapsed().as_millis() as u64,
                 false,
-                Some(format!("Grok request failed: {}", e)),
+                Some(error.to_string()),
                 None,
             );
-            return Err(anyhow::anyhow!("Grok request failed: {}", e));
+            return Err(error);
         }
     };
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = read_text_capped(resp, JSON_RESPONSE_BYTE_CAP)
-            .await
-            .unwrap_or_default();
+        let error = status_error("Grok", status);
         record_llm_web_search_usage(
             usage_ctx,
             "web_search.grok",
@@ -64,10 +63,10 @@ pub(super) async fn search_grok(
             MODEL_ID,
             started.elapsed().as_millis() as u64,
             false,
-            Some(format!("Grok failed ({}): {}", status, text)),
+            Some(error.to_string()),
             None,
         );
-        return Err(anyhow::anyhow!("Grok failed ({}): {}", status, text));
+        return Err(error);
     }
     let data = read_json_capped(resp, JSON_RESPONSE_BYTE_CAP, "Grok").await?;
     record_llm_web_search_usage(

@@ -2672,8 +2672,6 @@ async fn download_remote_media_source(
         ha_core::security::ssrf::SsrfPolicy::AllowPrivate
     };
     let trusted_hosts = ssrf_cfg.trusted_hosts.clone();
-    let parsed = ha_core::security::ssrf::check_url(url, effective_policy, &trusted_hosts).await?;
-
     let max_redirects = web_cfg.max_redirects;
     let timeout_seconds = web_cfg.timeout_seconds.max(1);
     let user_agent = if web_cfg.user_agent.trim().is_empty() {
@@ -2681,44 +2679,32 @@ async fn download_remote_media_source(
     } else {
         web_cfg.user_agent.clone()
     };
-    let redirect_policy_hosts = trusted_hosts.clone();
-    let redirect_policy = reqwest::redirect::Policy::custom(move |attempt| {
-        if attempt.previous().len() >= max_redirects {
-            return attempt.error("too many redirects");
-        }
-        if let Some(host) = attempt.url().host_str() {
-            if ha_core::security::ssrf::check_host_blocking_sync(
-                host,
-                effective_policy,
-                &redirect_policy_hosts,
-            ) {
-                return attempt.stop();
-            }
-        }
-        attempt.follow()
-    });
-
     let client = ha_core::provider::apply_proxy(
         reqwest::Client::builder()
             .user_agent(user_agent)
             .timeout(Duration::from_secs(timeout_seconds))
-            .redirect(redirect_policy),
+            .redirect(reqwest::redirect::Policy::none()),
     )
     .build()
     .map_err(|e| anyhow!("failed to create HTTP client: {e}"))?;
 
-    let resp = client
-        .get(parsed.clone())
-        .send()
-        .await
-        .map_err(|e| anyhow!("remote media fetch failed: {e}"))?;
+    let checked = ha_core::security::http_redirect::checked_get(
+        &client,
+        url,
+        effective_policy,
+        &trusted_hosts,
+        max_redirects,
+        None,
+    )
+    .await
+    .map_err(|error| anyhow!("remote media fetch failed: {error}"))?;
+    let resp = checked.response;
     let status = resp.status();
     if !status.is_success() {
         bail!("remote media URL returned HTTP {}", status.as_u16());
     }
 
     let final_url = resp.url().to_string();
-    ha_core::security::ssrf::check_url(&final_url, effective_policy, &trusted_hosts).await?;
     let response_mime = resp
         .headers()
         .get("content-type")
@@ -2779,8 +2765,6 @@ async fn fetch_url_snapshot(
         ha_core::security::ssrf::SsrfPolicy::AllowPrivate
     };
     let trusted_hosts = ssrf_cfg.trusted_hosts.clone();
-    let parsed = ha_core::security::ssrf::check_url(url, effective_policy, &trusted_hosts).await?;
-
     let max_redirects = web_cfg.max_redirects;
     let timeout_seconds = web_cfg.timeout_seconds.max(1);
     let user_agent = if web_cfg.user_agent.trim().is_empty() {
@@ -2788,44 +2772,32 @@ async fn fetch_url_snapshot(
     } else {
         web_cfg.user_agent.clone()
     };
-    let redirect_policy_hosts = trusted_hosts.clone();
-    let redirect_policy = reqwest::redirect::Policy::custom(move |attempt| {
-        if attempt.previous().len() >= max_redirects {
-            return attempt.error("too many redirects");
-        }
-        if let Some(host) = attempt.url().host_str() {
-            if ha_core::security::ssrf::check_host_blocking_sync(
-                host,
-                effective_policy,
-                &redirect_policy_hosts,
-            ) {
-                return attempt.stop();
-            }
-        }
-        attempt.follow()
-    });
-
     let client = ha_core::provider::apply_proxy(
         reqwest::Client::builder()
             .user_agent(user_agent)
             .timeout(Duration::from_secs(timeout_seconds))
-            .redirect(redirect_policy),
+            .redirect(reqwest::redirect::Policy::none()),
     )
     .build()
     .map_err(|e| anyhow!("failed to create HTTP client: {e}"))?;
 
-    let resp = client
-        .get(parsed.clone())
-        .send()
-        .await
-        .map_err(|e| anyhow!("source URL fetch failed: {e}"))?;
+    let checked = ha_core::security::http_redirect::checked_get(
+        &client,
+        url,
+        effective_policy,
+        &trusted_hosts,
+        max_redirects,
+        None,
+    )
+    .await
+    .map_err(|error| anyhow!("source URL fetch failed: {error}"))?;
+    let resp = checked.response;
     let status = resp.status();
     if !status.is_success() {
         bail!("source URL returned HTTP {}", status.as_u16());
     }
 
     let final_url = resp.url().to_string();
-    ha_core::security::ssrf::check_url(&final_url, effective_policy, &trusted_hosts).await?;
     let content_type = resp
         .headers()
         .get("content-type")
@@ -4054,6 +4026,14 @@ mod tests {
     use super::*;
     use base64::engine::general_purpose;
 
+    struct ConfigCacheRestore(std::sync::Arc<ha_core::config::AppConfig>);
+
+    impl Drop for ConfigCacheRestore {
+        fn drop(&mut self) {
+            ha_core::config::replace_cache_for_test((*self.0).clone());
+        }
+    }
+
     fn input() -> KnowledgeSourceImportInput {
         KnowledgeSourceImportInput {
             kind: None,
@@ -4065,6 +4045,58 @@ mod tests {
             upload_id: None,
             url: None,
         }
+    }
+
+    #[tokio::test]
+    async fn url_snapshot_rejects_private_redirect_before_next_request() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        use tokio::net::TcpListener;
+
+        let origin = TcpListener::bind("127.0.0.1:0").await.expect("origin");
+        let target = TcpListener::bind("127.0.0.1:0").await.expect("target");
+        let origin_addr = origin.local_addr().expect("origin address");
+        let target_addr = target.local_addr().expect("target address");
+
+        let original = ha_core::config::cached_config();
+        let _restore = ConfigCacheRestore(original.clone());
+        let mut config = (*original).clone();
+        config.ssrf.default_policy = ha_core::security::ssrf::SsrfPolicy::Strict;
+        config.ssrf.web_fetch_policy = Some(ha_core::security::ssrf::SsrfPolicy::Strict);
+        config.ssrf.trusted_hosts = vec![origin_addr.to_string()];
+        config.web_fetch.ssrf_protection = true;
+        config.web_fetch.max_redirects = 5;
+        ha_core::config::replace_cache_for_test(config);
+
+        let origin_task = tokio::spawn(async move {
+            let (mut stream, _) = origin.accept().await.expect("origin accept");
+            let mut request = [0_u8; 1024];
+            let _ = stream.read(&mut request).await;
+            stream
+                .write_all(
+                    format!(
+                        "HTTP/1.1 302 Found\r\nLocation: http://localhost:{}/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                        target_addr.port()
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .expect("write redirect");
+        });
+        let target_probe = tokio::spawn(async move {
+            tokio::time::timeout(std::time::Duration::from_millis(300), target.accept()).await
+        });
+
+        let error = match fetch_url_snapshot(&format!("http://{origin_addr}/start"), None).await {
+            Ok(_) => panic!("private redirect must be rejected"),
+            Err(error) => error,
+        };
+
+        assert!(error.to_string().contains("redirect URL is blocked"));
+        origin_task.await.expect("origin task");
+        assert!(
+            target_probe.await.expect("target probe").is_err(),
+            "blocked redirect target must not receive a connection"
+        );
     }
 
     #[test]

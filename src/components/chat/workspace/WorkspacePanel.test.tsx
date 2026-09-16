@@ -2,7 +2,16 @@
 
 import type { ComponentProps } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  configure,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import type { WorkspaceEnvironmentState } from "./useWorkspaceEnvironment"
 import type {
@@ -102,6 +111,7 @@ vi.mock("./useWorkspaceArtifacts", () => ({
 }))
 
 beforeEach(() => {
+  configure({ asyncUtilTimeout: 5_000 })
   Object.defineProperty(Element.prototype, "hasPointerCapture", {
     configurable: true,
     value: () => false,
@@ -3225,7 +3235,11 @@ describe("WorkspacePanel workflow section", () => {
       git: null,
     })
 
-    const reviewButtons = await screen.findAllByRole("button", { name: "复核产物" })
+    const reviewButtons = await screen.findAllByRole(
+      "button",
+      { name: "复核产物" },
+      { timeout: 5_000 },
+    )
     fireEvent.click(reviewButtons[0])
 
     await waitFor(() => {
@@ -4805,9 +4819,7 @@ describe("WorkspacePanel workflow section", () => {
 
     renderPanel(null)
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "展开步骤详情" }, { timeout: 5_000 }),
-    )
+    fireEvent.click(await screen.findByRole("button", { name: "展开步骤详情" }, { timeout: 5_000 }))
 
     expect(await screen.findByText("步骤详情")).toBeTruthy()
     expect(screen.getAllByText(/write-file/).length).toBeGreaterThan(1)

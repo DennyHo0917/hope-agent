@@ -8,9 +8,10 @@ use super::http::{
     client as external_http_client, endpoint_with_path, send_json, validated_endpoint,
 };
 use super::{
-    content_fingerprint, finish_sync_with_ledger_checkpoint, import_external_memory_for_review,
-    load_local_memory_snapshot, load_sync_ledger_async, local_memory_fingerprint,
-    persist_sync_ledger_async, resolve_external_memory_provider_credentials_async,
+    compatible_provider_version_for_sync, content_fingerprint, finish_sync_with_ledger_checkpoint,
+    import_external_memory_for_review, load_local_memory_snapshot, load_sync_ledger_async,
+    local_memory_fingerprint, parse_version, persist_sync_ledger_async,
+    resolve_external_memory_provider_credentials_async, version_meets_minimum,
     ExternalMemoryAdapterSyncFailure, ExternalMemoryAdapterSyncOutcome,
     ExternalMemoryProviderAdapter, ExternalMemoryProviderCredentials,
     ExternalMemoryProviderSyncLedger,
@@ -28,7 +29,17 @@ const PUSH_BATCH_SIZE: usize = 100;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum OpenVikingProtocol {
-    V1,
+    V1LegacyCurrentUser,
+    V1TildeCurrentUser,
+}
+
+impl OpenVikingProtocol {
+    fn current_user_memories_uri(self) -> &'static str {
+        match self {
+            Self::V1LegacyCurrentUser => "viking://user/memories/",
+            Self::V1TildeCurrentUser => "viking://~/memories",
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -60,8 +71,11 @@ async fn sync_open_viking(
         .await
         .map_err(|error| failure(outcome.clone(), error))?
         .ok_or_else(|| failure(outcome.clone(), anyhow!("provider credentials are missing")))?;
-    let _protocol =
-        resolve_protocol(&credentials).map_err(|error| failure(outcome.clone(), error))?;
+    let detected_version = compatible_provider_version_for_sync(provider.clone())
+        .await
+        .map_err(|error| failure(outcome.clone(), error))?;
+    let protocol = resolve_protocol(&credentials, &detected_version)
+        .map_err(|error| failure(outcome.clone(), error))?;
     let endpoint = validated_endpoint(&credentials.endpoint)
         .await
         .map_err(|error| failure(outcome.clone(), error))?;
@@ -75,6 +89,7 @@ async fn sync_open_viking(
             pull_memory_files(
                 provider,
                 &credentials,
+                protocol,
                 &endpoint,
                 &client,
                 &mut ledger,
@@ -102,6 +117,7 @@ async fn sync_open_viking(
 async fn pull_memory_files(
     provider: &ExternalMemoryProviderConfig,
     credentials: &ExternalMemoryProviderCredentials,
+    protocol: OpenVikingProtocol,
     endpoint: &str,
     client: &Client,
     ledger: &mut ExternalMemoryProviderSyncLedger,
@@ -114,7 +130,7 @@ async fn pull_memory_files(
         .map_err(|error| failure(outcome.clone(), error))?;
     let request = apply_auth(
         client.get(&list_url).query(&[
-            ("uri", "viking://user/memories/"),
+            ("uri", protocol.current_user_memories_uri()),
             ("recursive", "true"),
             ("simple", "false"),
             ("output", "original"),
@@ -276,11 +292,23 @@ async fn push_memory_sessions(
     Ok(())
 }
 
-fn resolve_protocol(credentials: &ExternalMemoryProviderCredentials) -> Result<OpenVikingProtocol> {
-    match credentials.protocol.as_str() {
-        "auto" | "v1" | "rest" | "self_hosted" => Ok(OpenVikingProtocol::V1),
-        other => bail!("unsupported OpenViking protocol: {other}"),
+fn resolve_protocol(
+    credentials: &ExternalMemoryProviderCredentials,
+    detected_version: &str,
+) -> Result<OpenVikingProtocol> {
+    if !matches!(
+        credentials.protocol.as_str(),
+        "auto" | "v1" | "rest" | "self_hosted"
+    ) {
+        bail!("unsupported OpenViking protocol: {}", credentials.protocol);
     }
+    parse_version(detected_version)
+        .ok_or_else(|| anyhow!("OpenViking version is not a supported semantic version"))?;
+    Ok(if version_meets_minimum(detected_version, "0.4.17") {
+        OpenVikingProtocol::V1TildeCurrentUser
+    } else {
+        OpenVikingProtocol::V1LegacyCurrentUser
+    })
 }
 
 fn apply_auth(
@@ -369,6 +397,49 @@ fn failure(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn credentials() -> ExternalMemoryProviderCredentials {
+        ExternalMemoryProviderCredentials {
+            schema_version: 1,
+            endpoint: "https://memory.example.test".to_string(),
+            api_key: None,
+            subject_id: "owner".to_string(),
+            protocol: "auto".to_string(),
+        }
+    }
+
+    #[test]
+    fn current_user_uri_is_selected_from_verified_server_version() {
+        assert_eq!(
+            resolve_protocol(&credentials(), "0.4.16")
+                .unwrap()
+                .current_user_memories_uri(),
+            "viking://user/memories/"
+        );
+        assert_eq!(
+            resolve_protocol(&credentials(), "0.4.17")
+                .unwrap()
+                .current_user_memories_uri(),
+            "viking://~/memories"
+        );
+        assert_eq!(
+            resolve_protocol(&credentials(), "0.4.17.1")
+                .unwrap()
+                .current_user_memories_uri(),
+            "viking://~/memories"
+        );
+    }
+
+    #[test]
+    fn current_user_uri_rejects_unknown_or_prerelease_versions() {
+        assert!(resolve_protocol(&credentials(), "unknown").is_err());
+        assert_eq!(
+            resolve_protocol(&credentials(), "0.4.17-rc.1")
+                .unwrap()
+                .current_user_memories_uri(),
+            "viking://user/memories/"
+        );
+    }
 
     #[test]
     fn parses_only_visible_memory_files() {
