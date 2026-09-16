@@ -15,6 +15,7 @@
 
 import { isTauriMode } from "@/lib/transport"
 import { logger } from "@/lib/logger"
+import { focusMainWindow } from "@/lib/spaceWindow"
 
 const EVENT = "help:ask-ai"
 const CHANNEL = "hope-agent-help-ask-ai"
@@ -60,13 +61,7 @@ export async function emitAskAi(payload: AskAiPayload): Promise<AskAiDelivery> {
   try {
     const { emit } = await import("@tauri-apps/api/event")
     await emit(EVENT, payload)
-    const { WebviewWindow } = await import("@tauri-apps/api/webviewWindow")
-    const main = await WebviewWindow.getByLabel("main")
-    if (main) {
-      await main.show()
-      await main.unminimize()
-      await main.setFocus()
-    }
+    await focusMainWindow()
   } catch (e) {
     logger.error("help", "askAi::emit", "Ask-AI emit failed", { error: e })
   }

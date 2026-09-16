@@ -1,12 +1,14 @@
 //! Main-window visibility belongs to the desktop shell. On macOS, `hide`
 //! must wait for AppKit's full-screen transition to finish, not a timer or
 //! an early `is_fullscreen() == false` snapshot.
-use tauri::Manager;
+use tauri::{Listener, Manager};
 
 #[cfg(any(target_os = "macos", test))]
 mod state;
 
 pub fn initialize(app: &tauri::AppHandle) -> tauri::Result<()> {
+    let handle = app.clone();
+    app.listen("main-window:show", move |_| show_main_window(&handle));
     #[cfg(target_os = "macos")]
     native::initialize(app)?;
     #[cfg(not(target_os = "macos"))]
@@ -59,7 +61,8 @@ mod native {
     use objc2::rc::Retained;
     use objc2_app_kit::{
         NSWindow, NSWindowDidEnterFullScreenNotification, NSWindowDidExitFullScreenNotification,
-        NSWindowWillEnterFullScreenNotification, NSWindowWillExitFullScreenNotification,
+        NSWindowStyleMask, NSWindowWillEnterFullScreenNotification,
+        NSWindowWillExitFullScreenNotification,
     };
     use objc2_foundation::{NSNotification, NSNotificationCenter};
     use std::{
@@ -176,13 +179,22 @@ mod native {
         let handle = app.clone();
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(Duration::from_secs(10)).await;
+            let probe = handle.clone();
             let _ = handle.run_on_main_thread(move || {
+                // Failed AppKit transitions need not send the completion
+                // notification. Resync only to allow a later explicit retry;
+                // a timeout must never hide the window by itself.
+                let fullscreen = probe.get_webview_window("main").and_then(|window| {
+                    let ptr = window.ns_window().ok()?;
+                    let native: &NSWindow = unsafe { &*ptr.cast() };
+                    Some(native.styleMask().contains(NSWindowStyleMask::FullScreen))
+                });
                 if STATE
                     .get()
                     .expect("visibility initialized")
                     .lock()
                     .expect("visibility lock")
-                    .expire(ticket)
+                    .expire(ticket, fullscreen)
                 {
                     ha_core::app_warn!(
                         "window",

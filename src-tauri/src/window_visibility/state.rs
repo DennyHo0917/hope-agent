@@ -51,9 +51,16 @@ impl VisibilityState {
         self.exit_requested = false;
     }
 
-    pub(super) fn expire(&mut self, ticket: u64) -> bool {
+    pub(super) fn expire(&mut self, ticket: u64, fullscreen: Option<bool>) -> bool {
         if self.pending == Some(ticket) {
             self.abort();
+            if let Some(fullscreen) = fullscreen {
+                self.phase = if fullscreen {
+                    Phase::Fullscreen
+                } else {
+                    Phase::Windowed
+                };
+            }
             true
         } else {
             false
@@ -132,13 +139,30 @@ mod tests {
         let mut state = VisibilityState::default();
         let old = state.request_hide(true).unwrap();
         assert_eq!(state.request_hide(true), None);
-        assert!(state.expire(old));
+        assert!(state.expire(old, Some(false)));
         state.observe(Phase::Windowed);
         assert_eq!(state.take_action(), None);
         let new = state.request_hide(false).unwrap();
         assert_ne!(old, new);
-        assert!(!state.expire(old));
+        assert!(!state.expire(old, Some(true)));
         assert_eq!(state.take_action(), Some(Action::Hide));
+    }
+
+    #[test]
+    fn failed_transitions_resync_on_timeout_and_allow_explicit_retry() {
+        for (phase, fullscreen, expected) in [
+            (Phase::Entering, false, Action::Hide),
+            (Phase::Exiting, true, Action::ExitFullscreen),
+        ] {
+            let mut state = VisibilityState::default();
+            state.observe(phase);
+            let ticket = state.request_hide(fullscreen).unwrap();
+            assert_eq!(state.take_action(), None);
+            assert!(state.expire(ticket, Some(fullscreen)));
+            assert_eq!(state.take_action(), None);
+            state.request_hide(fullscreen).unwrap();
+            assert_eq!(state.take_action(), Some(expected));
+        }
     }
 
     #[test]
