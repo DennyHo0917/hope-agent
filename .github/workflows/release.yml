@@ -203,10 +203,11 @@ jobs:
 
       # Extract per-version release notes for both the GitHub Release body
       # and the Tauri updater `latest.json#notes` field (tauri-action copies
-      # `releaseBody` into the updater manifest). Falls back to a generic
-      # blurb when the notes file is missing so a release never blocks on
-      # documentation. `shell: bash` is forced so the same heredoc works on
-      # the Windows runner (git-bash is available on windows-latest).
+      # `releaseBody` into the updater manifest). Keep draft-review reminders
+      # out of this shared field: they otherwise remain visible after publish.
+      # Falls back to a generic blurb when the notes file is missing so a
+      # release never blocks on documentation. `shell: bash` is forced so
+      # the same heredoc works on Windows (git-bash is available there).
       - name: Extract release notes
         id: notes
         shell: bash
@@ -220,8 +221,6 @@ jobs:
           {
             echo "body<<HA_NOTES_EOF"
             echo "$body"
-            echo ""
-            echo "Binaries are attached to this draft release. Review them before publishing."
             echo "HA_NOTES_EOF"
           } >> "$GITHUB_OUTPUT"
 
