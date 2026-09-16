@@ -411,7 +411,7 @@ sequenceDiagram
 
 动态客户端注册从授权服务器声明的 `token_endpoint_auth_methods_supported` 中选择当前支持的方式：优先 `none` + PKCE，其次 `client_secret_basic`，最后 `client_secret_post`；显式空列表或无交集时拒绝注册。元数据省略该列表，以及注册响应省略认证方式时，分别遵循 [RFC 8414](https://www.rfc-editor.org/rfc/rfc8414.html#section-2) 和 [RFC 7591](https://www.rfc-editor.org/rfc/rfc7591.html#section-2) 的 `client_secret_basic` 默认值。注册响应中的实际方式必须受支持，要求密钥时缺少密钥即失败。
 
-协商后的认证方式与客户端凭据共同保存；授权码交换和刷新共用令牌请求构造器。Basic 的客户端标识和密钥先按 [RFC 6749 第 2.3.1 节](https://www.rfc-editor.org/rfc/rfc6749.html#section-2.3.1) 进行表单编码，再放入认证头；Post 只放表单密钥，不同时发送两种认证。旧凭据未记录方式时保留旧行为：有密钥用表单认证，无密钥用 `none`。凭据读写经阻塞池；授权成功仅在安全原子写完成后发布。发现、注册等早期错误同样发送失败事件。
+协商后的认证方式与客户端凭据共同保存；授权码交换和刷新共用令牌请求构造器。Basic 的客户端标识和密钥先按 [RFC 6749 第 2.3.1 节](https://www.rfc-editor.org/rfc/rfc6749.html#section-2.3.1) 进行表单编码，再放入认证头；Post 只放表单密钥，不同时发送两种认证。旧凭据未记录方式时保留旧行为：有密钥用表单认证，无密钥用 `none`。凭据读写经阻塞池；授权成功仅在安全原子写完成后发布。发现、注册等早期错误同样发送失败事件，并将首次配置同步后处于空闲的服务器恢复到 `NeedsAuth`，保留直接重试入口且阻止自动重连；已就绪或已替换的运行时不被旧授权失败覆盖。
 
 OAuth HTTP 客户端拒绝自动重定向，防止已经校验的目标通过重定向扩大访问范围或转发令牌表单；授权浏览器链接不写日志。
 

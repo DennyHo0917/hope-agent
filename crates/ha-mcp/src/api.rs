@@ -540,6 +540,7 @@ pub async fn start_oauth(id: &str) -> Result<()> {
                 }
             }
             Err(e) => {
+                client::record_oauth_failure(&handle_clone, &server_name, &e).await;
                 ha_core::app_warn!(
                     "mcp",
                     &format!("{server_name}:oauth"),

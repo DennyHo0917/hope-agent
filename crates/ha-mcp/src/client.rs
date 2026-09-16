@@ -641,6 +641,29 @@ async fn set_state(handle: &ServerHandle, new_state: ServerState) {
     *state = new_state;
 }
 
+/// OAuth discovery and callback errors also require explicit owner retry.
+/// The initial configuration reconcile may have replaced NeedsAuth with Idle.
+pub(crate) async fn record_oauth_failure(handle: &ServerHandle, server_name: &str, err: &McpError) {
+    let _connection = handle.connect_lock.lock().await;
+    if handle.is_retired()
+        || matches!(
+            *handle.state.lock().await,
+            ServerState::Ready { .. } | ServerState::Disabled
+        )
+    {
+        return;
+    }
+    record_failure(
+        handle,
+        server_name,
+        &McpError::Auth {
+            server: server_name.into(),
+            message: err.to_string(),
+        },
+    )
+    .await;
+}
+
 async fn record_failure(handle: &ServerHandle, server_name: &str, err: &McpError) {
     handle
         .consecutive_failures
@@ -764,6 +787,31 @@ mod tests {
         }))
         .expect("valid MCP server fixture");
         ServerHandle::new(config)
+    }
+
+    #[tokio::test]
+    async fn first_oauth_failure_restores_explicit_retry_after_reconcile() {
+        let handle = sample_handle();
+        assert_eq!(handle.snapshot().await.state, "idle");
+        let error = McpError::Transport {
+            server: "auth".into(),
+            source: "synthetic discovery failure".into(),
+        };
+        record_oauth_failure(&handle, "auth", &error).await;
+        assert_eq!(handle.snapshot().await.state, "needsAuth");
+        assert!(connect_needed_or_error(&handle).await.is_err());
+
+        *handle.state.lock().await = ServerState::Ready {
+            tools: vec![],
+            resources: vec![],
+            prompts: vec![],
+        };
+        record_oauth_failure(&handle, "auth", &error).await;
+        assert_eq!(handle.snapshot().await.state, "ready");
+        *handle.state.lock().await = ServerState::Idle;
+        handle.retire();
+        record_oauth_failure(&handle, "auth", &error).await;
+        assert_eq!(handle.snapshot().await.state, "idle");
     }
 
     #[tokio::test]
