@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **macOS 全屏关闭**：主窗口退出原生全屏后再隐藏，快速重开会取消待隐藏请求，避免残留黑色桌面空间。 (#719)
 - **远程 MCP 首次授权**：仅填写 URL 的服务器也能进入授权流程，动态注册、令牌交换和刷新统一使用协商后的认证方式。 (#718)
 
 ## [0.48.0] - 2026-09-15

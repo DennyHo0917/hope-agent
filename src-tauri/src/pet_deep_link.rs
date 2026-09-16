@@ -1,7 +1,7 @@
 use std::sync::{Mutex, OnceLock};
 
 use serde::Serialize;
-use tauri::{Emitter, Manager};
+use tauri::Emitter;
 use tauri_plugin_deep_link::DeepLinkExt;
 
 static PENDING_INSTALL_LINK: OnceLock<Mutex<Option<String>>> = OnceLock::new();
@@ -40,11 +40,7 @@ fn receive(app: &tauri::AppHandle, url: &url::Url) {
     *pending()
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(link.clone());
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
+    crate::window_visibility::show_main_window(app);
     let _ = app.emit("pet:install_link", InstallLinkEvent { link });
 }
 

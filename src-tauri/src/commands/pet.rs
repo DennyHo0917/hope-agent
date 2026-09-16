@@ -230,11 +230,7 @@ pub async fn pet_focus_target_cmd(
     app: tauri::AppHandle,
     target: Option<ha_pet::PetNavigationTarget>,
 ) -> Result<(), CmdError> {
-    if let Some(main) = app.get_webview_window("main") {
-        main.show()?;
-        main.unminimize()?;
-        main.set_focus()?;
-    }
+    crate::window_visibility::show_main_window(&app);
     if let Some(target) = target {
         app.emit("pet:navigate", target)?;
     }
