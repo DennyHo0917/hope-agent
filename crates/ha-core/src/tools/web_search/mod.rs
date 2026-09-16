@@ -172,9 +172,8 @@ pub(crate) async fn tool_web_search(args: &Value, ctx: &ToolExecContext) -> Resu
         app_info!(
             "tool",
             "web_search",
-            "Web search [{}]: {} (count: {}, country: {:?}, lang: {:?}, freshness: {:?})",
+            "Web search [{}] started (count: {}, country: {:?}, lang: {:?}, freshness: {:?})",
             provider_id,
-            query,
             count,
             params.country,
             params.language,
@@ -184,13 +183,7 @@ pub(crate) async fn tool_web_search(args: &Value, ctx: &ToolExecContext) -> Resu
         // Check cache
         let ck = search_cache_key(&provider_id.to_string(), query, count, &params);
         if let Some(cached) = read_search_cache(&ck, config.cache_ttl_minutes) {
-            app_info!(
-                "tool",
-                "web_search",
-                "Cache hit for [{}]: {}",
-                provider_id,
-                query
-            );
+            app_info!("tool", "web_search", "Cache hit for [{}]", provider_id);
             return Ok(cached);
         }
 
@@ -252,9 +245,8 @@ pub(crate) async fn tool_web_search(args: &Value, ctx: &ToolExecContext) -> Resu
                 app_warn!(
                     "tool",
                     "web_search",
-                    "Provider [{}] returned 0 results for '{}', trying next provider",
-                    provider_id,
-                    query
+                    "Provider [{}] returned 0 results, trying next provider",
+                    provider_id
                 );
                 no_result_providers.push(provider_id.to_string());
             }
@@ -263,9 +255,8 @@ pub(crate) async fn tool_web_search(args: &Value, ctx: &ToolExecContext) -> Resu
                 app_warn!(
                     "tool",
                     "web_search",
-                    "Provider [{}] error for '{}': {}, trying next provider",
+                    "Provider [{}] error: {}, trying next provider",
                     provider_id,
-                    query,
                     error_message
                 );
                 provider_errors.push((provider_id.to_string(), error_message));
@@ -279,19 +270,17 @@ pub(crate) async fn tool_web_search(args: &Value, ctx: &ToolExecContext) -> Resu
             app_warn!(
                 "tool",
                 "web_search",
-                "All providers failed for '{}', last error: {}",
-                query,
+                "All providers failed, last error: {}",
                 e
             );
         }
         return Ok(format_empty_search_result(
-            query,
             &no_result_providers,
             &provider_errors,
         ));
     }
 
-    let mut output = format!("Search results for: {} (via {})\n\n", query, used_provider);
+    let mut output = format_search_result_header(&used_provider);
     for (i, result) in results.iter().enumerate() {
         output.push_str(&format!(
             "{}. {}\n   URL: {}\n   Source: {}\n   {}\n\n",
@@ -312,20 +301,20 @@ pub(crate) async fn tool_web_search(args: &Value, ctx: &ToolExecContext) -> Resu
     Ok(output)
 }
 
+fn format_search_result_header(provider: &str) -> String {
+    format!("Search results (via {})\n\n", provider)
+}
+
 fn format_empty_search_result(
-    query: &str,
     no_result_providers: &[String],
     provider_errors: &[(String, String)],
 ) -> String {
     let mut output = if provider_errors.is_empty() {
-        format!("No results found for: {}\n", query)
+        "No results found.\n".to_string()
     } else if no_result_providers.is_empty() {
-        format!(
-            "Search failed for: {}\n\nNo configured search provider returned results.\n",
-            query
-        )
+        "Search failed.\n\nNo configured search provider returned results.\n".to_string()
     } else {
-        format!("No results found by available providers for: {}\n", query)
+        "No results found by available providers.\n".to_string()
     };
 
     append_provider_diagnostics(&mut output, no_result_providers, provider_errors);
@@ -411,4 +400,27 @@ fn write_search_cache(key: String, response: String, ttl_minutes: u64) {
         return;
     }
     WEB_SEARCH_CACHE.put(key, response);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn user_facing_search_diagnostics_only_expose_provider_details() {
+        let header = format_search_result_header("Brave");
+        let empty = format_empty_search_result(
+            &["DuckDuckGo".to_string()],
+            &[(
+                "Brave".to_string(),
+                "request failed with HTTP 429".to_string(),
+            )],
+        );
+
+        assert_eq!(header, "Search results (via Brave)\n\n");
+        assert_eq!(
+            empty,
+            "No results found by available providers.\n\nProviders with no results:\n- DuckDuckGo\nProviders unavailable or failed:\n- Brave: request failed with HTTP 429\n\nProvider failures or rate limits are not the same as the web having no results.\n"
+        );
+    }
 }

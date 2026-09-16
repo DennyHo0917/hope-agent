@@ -2,7 +2,7 @@
 #
 # Hope Agent — multi-arch container image for `hope-agent server`.
 #
-# Stage 1 (web)     — node:20-bookworm-slim builds the Vite frontend to `/work/dist/`.
+# Stage 1 (web)     — node:24-bookworm-slim builds the Vite frontend to `/work/dist/`.
 #                     Pinned to $BUILDPLATFORM so we run pnpm exactly once even
 #                     for multi-arch builds (frontend output is arch-agnostic).
 #                     Node stage doesn't have the glibc constraint below.
@@ -26,7 +26,7 @@
 # -------------------------------------------------------------------
 # Stage 1: build the Vite frontend (arch-independent)
 # -------------------------------------------------------------------
-FROM --platform=$BUILDPLATFORM node:20-bookworm-slim AS web
+FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS web
 
 # Pin pnpm to the version declared in package.json#packageManager so
 # lockfile resolution is reproducible. `corepack prepare --activate`
