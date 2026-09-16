@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde_json::Value;
 
 use super::helpers::{
-    build_search_client, check_search_url, read_json_capped, read_text_capped,
+    build_search_client, check_search_url, read_json_capped, request_error, status_error,
     JSON_RESPONSE_BYTE_CAP,
 };
 use super::{SearchParams, SearchResult};
@@ -39,18 +39,11 @@ pub(super) async fn search_bocha(
         .json(&body)
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("Bocha AI Search request failed: {}", e))?;
+        .map_err(|error| request_error("Bocha AI Search", error))?;
 
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = read_text_capped(resp, JSON_RESPONSE_BYTE_CAP)
-            .await
-            .unwrap_or_default();
-        return Err(anyhow::anyhow!(
-            "Bocha AI Search failed ({}): {}",
-            status,
-            text
-        ));
+        return Err(status_error("Bocha AI Search", status));
     }
 
     let data = read_json_capped(resp, JSON_RESPONSE_BYTE_CAP, "Bocha AI Search").await?;

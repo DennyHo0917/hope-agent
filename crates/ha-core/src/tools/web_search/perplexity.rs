@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::helpers::{
-    build_search_client, read_json_capped, read_text_capped, JSON_RESPONSE_BYTE_CAP,
+    build_search_client, read_json_capped, request_error, status_error, JSON_RESPONSE_BYTE_CAP,
 };
 use super::{record_llm_web_search_usage, SearchParams, SearchResult, WebSearchUsageContext};
 
@@ -38,6 +38,7 @@ pub(super) async fn search_perplexity(
     {
         Ok(resp) => resp,
         Err(e) => {
+            let error = request_error("Perplexity", e);
             record_llm_web_search_usage(
                 usage_ctx,
                 "web_search.perplexity",
@@ -46,17 +47,15 @@ pub(super) async fn search_perplexity(
                 MODEL_ID,
                 started.elapsed().as_millis() as u64,
                 false,
-                Some(format!("Perplexity request failed: {}", e)),
+                Some(error.to_string()),
                 None,
             );
-            return Err(anyhow::anyhow!("Perplexity request failed: {}", e));
+            return Err(error);
         }
     };
     if !resp.status().is_success() {
         let status = resp.status();
-        let text = read_text_capped(resp, JSON_RESPONSE_BYTE_CAP)
-            .await
-            .unwrap_or_default();
+        let error = status_error("Perplexity", status);
         record_llm_web_search_usage(
             usage_ctx,
             "web_search.perplexity",
@@ -65,10 +64,10 @@ pub(super) async fn search_perplexity(
             MODEL_ID,
             started.elapsed().as_millis() as u64,
             false,
-            Some(format!("Perplexity failed ({}): {}", status, text)),
+            Some(error.to_string()),
             None,
         );
-        return Err(anyhow::anyhow!("Perplexity failed ({}): {}", status, text));
+        return Err(error);
     }
     let data = read_json_capped(resp, JSON_RESPONSE_BYTE_CAP, "Perplexity").await?;
     record_llm_web_search_usage(

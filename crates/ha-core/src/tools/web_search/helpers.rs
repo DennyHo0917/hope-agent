@@ -33,6 +33,16 @@ pub(super) async fn read_json_capped(
         .map_err(|e| anyhow::anyhow!("{} JSON parse failed: {}", provider, e))
 }
 
+/// Keep provider failures useful without retaining request URLs, query text,
+/// API keys, or upstream response bodies in tool diagnostics and usage logs.
+pub(super) fn request_error(provider: &str, error: reqwest::Error) -> anyhow::Error {
+    anyhow::anyhow!("{} request failed: {}", provider, error.without_url())
+}
+
+pub(super) fn status_error(provider: &str, status: reqwest::StatusCode) -> anyhow::Error {
+    anyhow::anyhow!("{} request failed with HTTP {}", provider, status.as_u16())
+}
+
 pub(super) fn build_search_client(timeout_secs: u64) -> Result<reqwest::Client> {
     crate::provider::apply_proxy(
         reqwest::Client::builder()

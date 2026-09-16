@@ -5,6 +5,7 @@
     "coding-gold@1.0.0": "8a3dc40168bf68d3364384c86cbf006c02c0eeb3ad69171349a57bf798cc8cf8",
     "context-compaction-safety@1.0.0": "dcbd56f140a7925118084cc98e0fe4c3adafe2c5ba8819642cbd9ad104d2747d",
     "domain-trace@1.0.0": "4300435986765211c0c6ebf880116e6c961535bf2b7b02c180a3b9dd646c4ccc",
+    "domain-trace@1.1.0": "aab1de39ede8fdb5d85660c78711fe4d851f18f24562f8100df79d8a14dd5dbb",
     "knowledge-retrieval-evidence@1.0.0": "1a14690ad2a9854cef38eea26796865258895982b3425ec7a75e8f4370d1e7ce",
     "memory-dreaming@1.0.0": "3353306d3d7cb706aaa540f1dbdcf505081259946bdd0cce55d527b971e04965",
     "memory-retrieval-scale@1.0.0": "e27851435b10b5395c2c35779791ca6796d182270a30afcfddd640f7c203219b"

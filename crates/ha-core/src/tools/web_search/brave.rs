@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use super::helpers::{
-    brave_freshness, build_search_client, read_json_capped, read_text_capped,
+    brave_freshness, build_search_client, read_json_capped, request_error, status_error,
     JSON_RESPONSE_BYTE_CAP,
 };
 use super::{SearchParams, SearchResult};
@@ -37,17 +37,10 @@ pub(super) async fn search_brave(
         .header("Accept", "application/json")
         .send()
         .await
-        .map_err(|e| anyhow::anyhow!("Brave Search request failed: {}", e))?;
+        .map_err(|error| request_error("Brave Search", error))?;
     if !resp.status().is_success() {
         let status = resp.status();
-        let body = read_text_capped(resp, JSON_RESPONSE_BYTE_CAP)
-            .await
-            .unwrap_or_default();
-        return Err(anyhow::anyhow!(
-            "Brave Search failed ({}): {}",
-            status,
-            body
-        ));
+        return Err(status_error("Brave Search", status));
     }
     let body = read_json_capped(resp, JSON_RESPONSE_BYTE_CAP, "Brave Search").await?;
     let web = body
