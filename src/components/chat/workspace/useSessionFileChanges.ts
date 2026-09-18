@@ -106,24 +106,24 @@ export function aggregateSessionFileChanges(messages: Message[]): SessionFileEnt
           })
         }
       }
-    }
-    // 旧消息兜底：无结构化 metadata 的改写文件(write/edit/apply_patch)，从 result/
-    // arguments 解析出 path(复用消息下挂文件的提取逻辑)，无 diff 数据。
-    for (const attachment of extractMessageFileAttachments(message.contentBlocks ?? [])) {
-      if (attachment.kind !== "path" || /^https?:\/\//.test(attachment.path)) continue
-      if (attachment.diff) continue
-      // Generic legacy outputs only add missing entries; they cannot invalidate a write.
-      if (attachment.diff === undefined && entries.has(attachment.path)) continue
-      // A successful later write without metadata invalidates any older snapshot.
-      touch(attachment.path, {
-        path: attachment.path,
-        kind: "modified",
-        diff: null,
-        readLines: null,
-        linesAdded: 0,
-        linesRemoved: 0,
-        language: attachment.language ?? null,
-      })
+      // Apply legacy fallbacks in tool order, so an earlier missing snapshot cannot
+      // replace a later deletion or move an older write above more recent activity.
+      for (const attachment of extractMessageFileAttachments([{ type: "tool_call", tool }])) {
+        if (attachment.kind !== "path" || /^https?:\/\//.test(attachment.path)) continue
+        if (attachment.diff) continue
+        // Generic legacy outputs only add missing entries; they cannot invalidate a write.
+        if (attachment.diff === undefined && entries.has(attachment.path)) continue
+        // A successful later write without metadata invalidates any older snapshot.
+        touch(attachment.path, {
+          path: attachment.path,
+          kind: "modified",
+          diff: null,
+          readLines: null,
+          linesAdded: 0,
+          linesRemoved: 0,
+          language: attachment.language ?? null,
+        })
+      }
     }
   }
 

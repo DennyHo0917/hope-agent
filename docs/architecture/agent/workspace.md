@@ -319,7 +319,7 @@ flowchart LR
 - 工具产出的媒体文件（`send_attachment` / `image_generate` / `exec` 经 `__MEDIA_ITEMS__` 头带出的 `localPath`）以 `modified` 登记。命中已有条目时两侧行为一致：**刷新活动顺序，并把既有 `read` 升级为 `modified`**（产物落盘比只读更重要），但保留已有 write 条目更丰富的 diff / 行数 / read_lines。由 `upsert_media`（Rust）与 `useSessionFileChanges.ts` 媒体分支（TS）实现，`media_after_read_upgrades_to_modified_and_bumps` / `media_after_write_keeps_diff_and_bumps` 两个 Rust 测试锁定。
 - 同一条消息内的处理次序：先结构化 file metadata，再该消息的媒体产物。后端刻意写成单次交错遍历，就是为了对齐前端按 tool 逐个处理的顺序。
 - 排序：最近触及在前。
-- **已登记的有意分歧**：前端 live tail 会用 `extractModifiedFiles` 对没有结构化 metadata 的旧消息做兜底；后端不做，只读结构化 metadata。窗口内的旧消息由 live tail 覆盖，更早的属已知缺口——这是刻意取舍，不是待修漂移。
+- **已登记的有意分歧**：前端 live tail 会用 `extractMessageFileAttachments` 对没有结构化 metadata 的旧消息做兜底，并按工具顺序处理，避免旧兜底覆盖后续删除快照或打乱最近触及顺序；后端不做，只读结构化 metadata。窗口内的旧消息由 live tail 覆盖，更早的属已知缺口——这是刻意取舍，不是待修漂移。
 
 **来源（`aggregate_sources` ↔ `aggregateSessionUrlSources`）**
 

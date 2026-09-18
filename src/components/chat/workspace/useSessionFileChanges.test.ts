@@ -189,6 +189,35 @@ describe("aggregateSessionFileChanges", () => {
 })
 
 describe("latest missing snapshots", () => {
+  const missingSnapshot: ContentBlock = {
+    type: "tool_call",
+    tool: {
+      callId: "missing",
+      name: "write",
+      arguments: JSON.stringify({ path: "a.ts" }),
+      result: "Successfully wrote 42 bytes",
+    },
+  }
+
+  it("preserves a later deletion after a missing snapshot in the same message", () => {
+    const deleted = change("a.ts", "delete", 0, 1)
+    const message = toolMsg(deleted)
+    message.contentBlocks = [missingSnapshot, ...message.contentBlocks!]
+    expect(aggregateSessionFileChanges([message])[0]).toMatchObject({
+      diff: deleted,
+      linesRemoved: 1,
+    })
+  })
+
+  it("keeps tool chronology when an earlier write is missing its snapshot", () => {
+    const message = toolMsg(change("b.ts", "create"))
+    message.contentBlocks = [missingSnapshot, ...message.contentBlocks!]
+    expect(aggregateSessionFileChanges([message]).map((entry) => entry.path)).toEqual([
+      "b.ts",
+      "a.ts",
+    ])
+  })
+
   it("does not offer a stale diff after a successful later write loses metadata", () => {
     const prior = toolMsg(change("a.ts", "create"))
     const latest: Message = {
