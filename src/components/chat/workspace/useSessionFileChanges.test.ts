@@ -187,3 +187,55 @@ describe("aggregateSessionFileChanges", () => {
     expect(aggregateSessionFileChanges([msg])).toEqual([])
   })
 })
+
+describe("latest missing snapshots", () => {
+  it("does not offer a stale diff after a successful later write loses metadata", () => {
+    const prior = toolMsg(change("a.ts", "create"))
+    const latest: Message = {
+      role: "assistant",
+      content: "",
+      contentBlocks: [
+        {
+          type: "tool_call",
+          tool: {
+            callId: "lost",
+            name: "write",
+            arguments: JSON.stringify({ path: "a.ts" }),
+            result: "Successfully wrote 42 bytes",
+          },
+        },
+      ],
+    }
+    expect(aggregateSessionFileChanges([prior, latest])[0]).toMatchObject({
+      path: "a.ts",
+      kind: "modified",
+      diff: null,
+    })
+    expect(
+      aggregateSessionFileChanges([
+        { ...prior, contentBlocks: [...prior.contentBlocks!, ...latest.contentBlocks!] },
+      ])[0].diff,
+    ).toBeNull()
+  })
+
+  it("retains the saved diff after a failed later write", () => {
+    const prior = toolMsg(change("a.ts", "create"))
+    const failed: Message = {
+      role: "assistant",
+      content: "",
+      contentBlocks: [
+        {
+          type: "tool_call",
+          tool: {
+            callId: "failed",
+            name: "write",
+            arguments: JSON.stringify({ path: "a.ts" }),
+            result: "Tool error: denied",
+            isError: true,
+          },
+        },
+      ],
+    }
+    expect(aggregateSessionFileChanges([prior, failed])[0].diff).toEqual(change("a.ts", "create"))
+  })
+})

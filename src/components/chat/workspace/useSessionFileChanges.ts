@@ -1,6 +1,6 @@
 import { useMemo } from "react"
 import type { FileChangeMetadata, Message, ToolCall } from "@/types/chat"
-import { extractModifiedFiles } from "@/components/chat/chatUtils"
+import { extractMessageFileAttachments } from "@/components/chat/chatUtils"
 
 /** 文件在本会话里是被改写过还是仅被读取。改写细节(create/edit/delete、行数)看 `diff`。 */
 export type SessionFileKind = "modified" | "read"
@@ -36,7 +36,7 @@ export function* iterateMessageToolCalls(message: Message): Generator<ToolCall> 
 /**
  * 聚合整个会话里被工具碰到的文件：write / edit / apply_patch 的改动 + read 的只读
  * 浏览。按 path 去重，改写优先于只读，保留最近一次改写的完整 metadata。对 diff-panel
- * 特性之前的旧消息(无结构化 metadata)用 `extractModifiedFiles` 兜底补上改写文件
+ * 特性之前的旧消息(无结构化 metadata)用 `extractMessageFileAttachments` 兜底补上改写文件
  * (无 diff 数据)，与消息下挂文件保持一致。结果按最近触及排序(最新在前)。纯函数。
  */
 export function aggregateSessionFileChanges(messages: Message[]): SessionFileEntry[] {
@@ -109,18 +109,17 @@ export function aggregateSessionFileChanges(messages: Message[]): SessionFileEnt
     }
     // 旧消息兜底：无结构化 metadata 的改写文件(write/edit/apply_patch)，从 result/
     // arguments 解析出 path(复用消息下挂文件的提取逻辑)，无 diff 数据。
-    for (const path of extractModifiedFiles(message.contentBlocks ?? [])) {
-      // extractModifiedFiles 也会带出 mediaUrls(http(s) url)——那是产物媒体不是源
-      // 文件,跳过;只补真实文件路径。
-      if (entries.has(path) || /^https?:\/\//.test(path)) continue
-      touch(path, {
-        path,
+    for (const attachment of extractMessageFileAttachments(message.contentBlocks ?? [])) {
+      if (attachment.kind !== "path" || attachment.diff !== null) continue
+      // A successful later write without metadata invalidates any older snapshot.
+      touch(attachment.path, {
+        path: attachment.path,
         kind: "modified",
         diff: null,
         readLines: null,
         linesAdded: 0,
         linesRemoved: 0,
-        language: null,
+        language: attachment.language ?? null,
       })
     }
   }

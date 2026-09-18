@@ -2,6 +2,21 @@ import { diffLines } from "diff"
 
 import type { FileChangeMetadata, FileChangesMetadata, ToolCall } from "@/types/chat"
 
+/** Missing sides must not masquerade as a full-addition/deletion diff. */
+export function fileChangeDiffPayload(
+  change: FileChangeMetadata | null | undefined,
+): FileChangeMetadata | FileChangesMetadata {
+  const hasBefore = typeof change?.before === "string"
+  const hasAfter = typeof change?.after === "string"
+  const available =
+    change?.action === "create"
+      ? hasAfter
+      : change?.action === "delete"
+        ? hasBefore
+        : hasBefore && hasAfter
+  return available && change ? change : { kind: "file_changes", changes: [] }
+}
+
 export interface FileChangeSummary {
   linesAdded: number
   linesRemoved: number

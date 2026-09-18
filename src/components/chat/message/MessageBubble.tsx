@@ -41,6 +41,7 @@ import {
   formatDuration,
   formatMessageTime,
   extractMessageFileAttachments,
+  mergeMessageFileAttachments,
   type MessageFileAttachment,
   isUserAlignedMessage,
 } from "../chatUtils"
@@ -258,36 +259,6 @@ export interface MessageBubbleProps {
   hideActionBar?: boolean
   forceExpandUserContent?: boolean
   onForceExpandedUserContentDismiss?: () => void
-}
-
-function messageFileAttachmentKey(file: MessageFileAttachment): string {
-  return file.kind === "media"
-    ? `media:${file.item.localPath || file.item.url || file.item.name}`
-    : `path:${file.path}`
-}
-
-function mergeMessageFileAttachments(
-  ownFiles: MessageFileAttachment[],
-  footerFiles: MessageFileAttachment[] | undefined,
-): MessageFileAttachment[] {
-  if (!footerFiles?.length) return ownFiles
-  const merged = new Map<string, MessageFileAttachment>()
-  for (const file of ownFiles) merged.set(messageFileAttachmentKey(file), file)
-  for (const file of footerFiles) {
-    const key = messageFileAttachmentKey(file)
-    const existing = merged.get(key)
-    if (!existing) {
-      merged.set(key, file)
-    } else if (
-      existing.kind === "path" &&
-      file.kind === "path" &&
-      !existing.language &&
-      file.language
-    ) {
-      existing.language = file.language
-    }
-  }
-  return [...merged.values()]
 }
 
 function hasRenderableTextContent(msg: Message): boolean {
@@ -1498,7 +1469,7 @@ function MessageBubbleInner({
     [hideOwnFooterFiles, msg.role, msg.contentBlocks],
   )
   const messageFiles = useMemo(
-    () => mergeMessageFileAttachments(ownMessageFiles, footerFiles),
+    () => mergeMessageFileAttachments(footerFiles, ownMessageFiles),
     [footerFiles, ownMessageFiles],
   )
 
@@ -2139,7 +2110,7 @@ function MessageBubbleInner({
           {goalCompletionFooter && <div className="ml-7">{goalCompletionFooter}</div>}
           {messageFiles.length > 0 && (
             <div className="ml-7">
-              <FileAttachments files={messageFiles} sessionId={sessionId} />
+              <FileAttachments files={messageFiles} sessionId={sessionId} onOpenDiff={onOpenDiff} />
             </div>
           )}
           {shouldShowMemoryTrace && (
@@ -2313,7 +2284,7 @@ function MessageBubbleInner({
           )}
           {msg.role === "assistant" && goalCompletionFooter}
           {messageFiles.length > 0 && (
-            <FileAttachments files={messageFiles} sessionId={sessionId} />
+            <FileAttachments files={messageFiles} sessionId={sessionId} onOpenDiff={onOpenDiff} />
           )}
           {shouldShowMemoryTrace && (
             <ActiveMemoryTrace

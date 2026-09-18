@@ -71,7 +71,7 @@ describe("mergeArtifacts", () => {
     expect(merged).toEqual([{ url: "u", origin: "web_search" }])
   })
 
-  it("file reconciliation preserves backend language when a live read overlaps", () => {
+  it("keeps a backend-only modification when a newer live read overlaps", () => {
     const backend: SessionFileEntry[] = [
       {
         path: "/repo/generated",
@@ -98,11 +98,11 @@ describe("mergeArtifacts", () => {
     expect(mergeArtifacts(backend, live, (f) => f.path, reconcileFile)).toEqual([
       {
         path: "/repo/generated",
-        kind: "read",
+        kind: "modified",
         diff: null,
-        readLines: 42,
-        linesAdded: 0,
-        linesRemoved: 0,
+        readLines: null,
+        linesAdded: 4,
+        linesRemoved: 1,
         language: "typescript",
       },
     ])

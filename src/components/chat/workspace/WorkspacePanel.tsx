@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react"
 import { useTranslation } from "react-i18next"
+import { fileChangeDiffPayload } from "../message/fileChangeSummary"
 import { toast } from "sonner"
 import {
   BarChart3,
@@ -451,10 +452,9 @@ function TruncatedNote() {
 }
 
 /**
- * 文件行 —— 操作与消息下挂文件 / Markdown 链接完全一致:主点击按类型 × 模式决议
- * (预览 / 打开 / 下载),右键 + ⋯ 出完整菜单。窗口内文件带结构化 diff 时额外保留
- * 一个「查看 diff」按钮(工作台独有);窗口外(后端摘要)文件无 diff,点击走预览当前
- * 内容。工作台在消息树外,故 sessionId / onPreviewFile 通过 overrides 显式传入。
+ * 改写文件优先打开工具快照；仅有历史摘要的文本文件显示「无 diff 数据」。
+ * 媒体产物与只读文件沿用预览策略，右键 + ⋯ 始终保留当前文件操作。
+ * 工作台在消息树外，sessionId / onPreviewFile 通过 overrides 显式传入。
  */
 function FileRow({
   entry,
@@ -471,7 +471,7 @@ function FileRow({
   const name = basename(entry.path)
   const diff = entry.diff
   // `+N -M` shows for any modified file with a known line delta (backend
-  // summary or live diff); the diff *button* needs the structured `diff`.
+  // summary or live diff); missing snapshots open the explicit no-data state.
   const showDelta = entry.kind === "modified" && (entry.linesAdded > 0 || entry.linesRemoved > 0)
   const target = useMemo<PreviewTarget>(
     () => ({
@@ -484,7 +484,10 @@ function FileRow({
     [diff?.language, entry.language, entry.path, name, sessionId],
   )
   const overrides = useMemo(() => ({ sessionId, onPreviewFile }), [sessionId, onPreviewFile])
-  const { primary, run } = useFileResource(target, overrides)
+  const { kind, primary, run } = useFileResource(target, overrides)
+  const opensDiff =
+    !!diff || (entry.kind === "modified" && ["code", "markdown", "text", "other"].includes(kind))
+  const openDiff = () => onOpenDiff(fileChangeDiffPayload(diff))
   const btnClass =
     "p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
 
@@ -495,7 +498,7 @@ function FileRow({
         <IconTip label={entry.path}>
           <button
             type="button"
-            onClick={() => run(primary)}
+            onClick={() => (opensDiff ? openDiff() : run(primary))}
             className="flex min-w-0 flex-1 items-center gap-2 text-left transition-colors hover:text-foreground"
           >
             <span className="truncate text-xs font-medium text-foreground/90">{name}</span>
@@ -513,9 +516,14 @@ function FileRow({
           </button>
         </IconTip>
         <div className="flex shrink-0 items-center gap-0.5">
-          {diff && (
+          {opensDiff && (
             <IconTip label={t("diffPanel.openDiff", "查看 diff")}>
-              <button type="button" onClick={() => onOpenDiff(diff)} className={btnClass}>
+              <button
+                type="button"
+                aria-label={t("diffPanel.openDiff", "查看 diff")}
+                onClick={openDiff}
+                className={btnClass}
+              >
                 <GitCompare className="h-3.5 w-3.5" />
               </button>
             </IconTip>

@@ -4,8 +4,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { MouseEvent as ReactMouseEvent } from "react"
 
-import type { Message } from "@/types/chat"
+import type { FileChangeMetadata, Message } from "@/types/chat"
 import MessageList from "./MessageList"
+import type { MessageFileAttachment } from "./chatUtils"
 import type { AskUserQuestionGroup } from "./ask-user/AskUserQuestionBlock"
 import type { PlanCardData } from "./plan-mode/PlanCardBlock"
 
@@ -25,6 +26,7 @@ vi.mock("./MessageBubble", () => ({
     suppressGoalCompletionFooter,
     hideActionBar,
     forceExpandUserContent,
+    footerFiles,
     index,
     onContextMenu,
   }: {
@@ -34,11 +36,13 @@ vi.mock("./MessageBubble", () => ({
     suppressGoalCompletionFooter?: boolean
     hideActionBar?: boolean
     forceExpandUserContent?: boolean
+    footerFiles?: MessageFileAttachment[]
     index: number
     onContextMenu: (event: ReactMouseEvent, index: number) => void
   }) => (
     <div
       data-testid="message-bubble"
+      data-footer-files={JSON.stringify(footerFiles ?? [])}
       data-message-db-id={msg.dbId ?? ""}
       data-execution-state={executionState ?? "none"}
       data-goal-report-status={goalCompletionReportOverride?.status ?? ""}
@@ -1299,4 +1303,54 @@ describe("MessageList", () => {
     expect(screen.getByText("short-0")).toBeTruthy()
     expect(screen.getByText("short-9")).toBeTruthy()
   })
+})
+
+test("hoists the latest saved diff through completed-turn file deduplication", () => {
+  const change: FileChangeMetadata = {
+    kind: "file_change",
+    path: "/repo/repeated.ts",
+    action: "edit",
+    before: "old",
+    after: "latest",
+    linesAdded: 1,
+    linesRemoved: 1,
+    language: "typescript",
+    truncated: false,
+  }
+  const step = (dbId: number, after: string) =>
+    baseMessage({
+      dbId,
+      content: "step " + dbId,
+      contentBlocks: [
+        {
+          type: "tool_call",
+          tool: {
+            callId: String(dbId),
+            name: "edit",
+            arguments: "{}",
+            metadata: { ...change, after },
+          },
+        },
+      ],
+    })
+  render(
+    <MessageList
+      messages={[
+        baseMessage({ role: "user", dbId: 1, content: "question" }),
+        step(2, "earlier"),
+        step(3, "latest"),
+        baseMessage({ dbId: 4, content: "final answer" }),
+      ]}
+      loading={false}
+      agents={[]}
+      hasMore={false}
+      loadingMore={false}
+      onLoadMore={vi.fn()}
+      sessionId="s1"
+    />,
+  )
+  const final = screen.getByText("final answer")
+  expect(JSON.parse(final.getAttribute("data-footer-files")!)).toEqual([
+    { kind: "path", path: change.path, language: change.language, diff: change },
+  ])
 })
