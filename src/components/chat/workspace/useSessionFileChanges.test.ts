@@ -239,3 +239,25 @@ describe("latest missing snapshots", () => {
     expect(aggregateSessionFileChanges([prior, failed])[0].diff).toEqual(change("a.ts", "create"))
   })
 })
+
+it("keeps legacy local media URLs without replacing a stored tool snapshot", () => {
+  const prior = toolMsg(change("a.ts", "create"))
+  const outputs: Message = {
+    role: "assistant",
+    content: "",
+    contentBlocks: [
+      {
+        type: "tool_call",
+        tool: {
+          callId: "media",
+          name: "exec",
+          arguments: "{}",
+          mediaUrls: ["a.ts", "/tmp/generated.png", "https://example.com/remote.png"],
+        },
+      },
+    ],
+  }
+  const entries = aggregateSessionFileChanges([prior, outputs])
+  expect(entries.map((entry) => entry.path)).toEqual(["/tmp/generated.png", "a.ts"])
+  expect(entries.find((entry) => entry.path === "a.ts")?.diff).toEqual(change("a.ts", "create"))
+})
