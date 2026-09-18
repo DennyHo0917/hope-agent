@@ -20,8 +20,8 @@ export interface WorkspaceArtifacts {
   browserTruncated: boolean
 }
 
-/** Backend file summary → `SessionFileEntry` (no historical diff — window-外
- *  files preview current content instead). */
+/** Backend summaries omit historical snapshots. Modified text files open the
+ *  diff empty state; current-file preview remains available in the menu. */
 function backendFileToEntry(f: FileArtifactSummary): SessionFileEntry {
   return {
     path: f.path,
@@ -86,10 +86,12 @@ export function mergeArtifacts<T>(
 /** Preserve a lightweight syntax hint from the full-history backend summary
  *  when the loaded-window live entry only knows that the file was read. */
 export function reconcileFile(live: SessionFileEntry, backend: SessionFileEntry): SessionFileEntry {
-  if (!hasSyntaxLanguage(live.language) && hasSyntaxLanguage(backend.language)) {
-    return { ...live, language: backend.language }
+  // A recent read must not hide a write that is outside the loaded window.
+  const entry = live.kind === "read" && backend.kind === "modified" ? backend : live
+  if (!hasSyntaxLanguage(entry.language) && hasSyntaxLanguage(backend.language)) {
+    return { ...entry, language: backend.language }
   }
-  return live
+  return entry
 }
 
 /** Preserve the richest structured URL provenance and its web-fetch details

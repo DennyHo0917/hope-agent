@@ -2,6 +2,7 @@ import type * as React from "react"
 import type {
   Message,
   ContentBlock,
+  FileChangeMetadata,
   MessageAttachment,
   MediaItem,
   ToolCall,
@@ -596,7 +597,13 @@ export function formatDuration(ms: number): string {
 }
 
 export type MessageFileAttachment =
-  | { kind: "path"; path: string; language?: string | null }
+  | {
+      kind: "path"
+      path: string
+      language?: string | null
+      /** undefined: generic output URL; null: modified file without a stored snapshot. */
+      diff?: FileChangeMetadata | null
+    }
   | { kind: "media"; item: MediaItem }
 
 function inferAttachmentKind(mimeType: string): MessageAttachment["kind"] {
@@ -719,14 +726,28 @@ export function extractMessageFileAttachments(blocks: ContentBlock[]): MessageFi
   const mediaItems = new Map<string, MessageFileAttachment>()
   const mediaLocalPaths = new Set<string>()
 
-  const addPath = (path: string | null | undefined, language?: string | null) => {
+  const addPath = (
+    path: string | null | undefined,
+    language?: string | null,
+    diff?: FileChangeMetadata | null,
+  ) => {
     const trimmed = path?.trim()
     if (!trimmed || mediaLocalPaths.has(trimmed)) return
     const existing = pathItems.get(trimmed)
     if (!existing) {
-      pathItems.set(trimmed, { kind: "path", path: trimmed, language: language ?? null })
-    } else if (existing.kind === "path" && !existing.language && language) {
-      existing.language = language
+      pathItems.set(trimmed, {
+        kind: "path",
+        path: trimmed,
+        language: language ?? null,
+        ...(diff !== undefined ? { diff } : {}),
+      })
+    } else if (existing.kind === "path") {
+      // The latest write wins, including a later write whose snapshot was lost.
+      pathItems.set(trimmed, {
+        ...existing,
+        language: language || existing.language,
+        ...(diff !== undefined ? { diff } : {}),
+      })
     }
   }
 
@@ -748,11 +769,13 @@ export function extractMessageFileAttachments(blocks: ContentBlock[]): MessageFi
     block.tool.mediaUrls?.forEach((url) => addPath(url))
 
     if (metadata?.kind === "file_change") {
-      if (metadata.action !== "delete") addPath(metadata.path, metadata.language)
+      if (metadata.action !== "delete") addPath(metadata.path, metadata.language, metadata)
+      continue
     } else if (metadata?.kind === "file_changes") {
       for (const change of metadata.changes) {
-        if (change.action !== "delete") addPath(change.path, change.language)
+        if (change.action !== "delete") addPath(change.path, change.language, change)
       }
+      continue
     }
 
     if (!result) continue
@@ -761,7 +784,7 @@ export function extractMessageFileAttachments(blocks: ContentBlock[]): MessageFi
       try {
         const parsed = JSON.parse(args)
         const p = parsed.path || parsed.file_path
-        addPath(p)
+        addPath(p, null, null)
       } catch {
         /* ignore */
       }
@@ -772,7 +795,7 @@ export function extractMessageFileAttachments(blocks: ContentBlock[]): MessageFi
       try {
         const parsed = JSON.parse(args)
         const p = parsed.path || parsed.file_path
-        addPath(p)
+        addPath(p, null, null)
       } catch {
         /* ignore */
       }
@@ -785,12 +808,39 @@ export function extractMessageFileAttachments(blocks: ContentBlock[]): MessageFi
         for (const entry of match[1].split(", ")) {
           const arrow = entry.indexOf(" -> ")
           const filePath = arrow >= 0 ? entry.slice(arrow + 4).trim() : entry.trim()
-          addPath(filePath)
+          addPath(filePath, null, null)
         }
       }
     }
   }
   return [...pathItems.values(), ...mediaItems.values()]
+}
+
+/** Merge chronological footer groups without mutating cached message attachments. */
+export function mergeMessageFileAttachments(
+  ...groups: Array<readonly MessageFileAttachment[] | undefined>
+): MessageFileAttachment[] {
+  const merged = new Map<string, MessageFileAttachment>()
+  for (const group of groups) {
+    for (const file of group ?? []) {
+      const key =
+        file.kind === "media"
+          ? `media:${file.item.localPath || file.item.url || file.item.name}`
+          : `path:${file.path}`
+      const existing = merged.get(key)
+      merged.set(
+        key,
+        existing?.kind === "path" && file.kind === "path"
+          ? {
+              ...existing,
+              ...file,
+              language: file.language || existing.language,
+            }
+          : file,
+      )
+    }
+  }
+  return [...merged.values()]
 }
 
 /** Extract file paths modified by tool calls (write/edit/apply_patch). */

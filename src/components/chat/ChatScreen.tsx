@@ -3522,7 +3522,8 @@ export default function ChatScreen({
     planMode.showPanel &&
     planMode.planState !== "off" &&
     (planMode.planState === "planning" || planMode.planContent.trim().length > 0)
-  const isDiffPanelVisible = diffPanel.showPanel && diffPanel.activeChanges.length > 0
+  // Empty tool snapshots must still open the panel so its no-data state is visible.
+  const isDiffPanelVisible = diffPanel.showPanel
   const isFilePreviewVisible = filePreview.showPanel && !!filePreview.target
   const [activeExclusiveRightPanel, setActiveExclusiveRightPanel] =
     useState<ExclusiveRightPanel | null>(null)

@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest"
-import type { ContentBlock, Message, SessionMessage } from "@/types/chat"
+import type { ContentBlock, FileChangeMetadata, Message, SessionMessage } from "@/types/chat"
 import type { Transport } from "@/lib/transport"
 import { setTransport } from "@/lib/transport-provider"
 import {
@@ -7,6 +7,8 @@ import {
   isCenteredSystemMessage,
   isUserAlignedMessage,
   extractMessageFileAttachments,
+  mergeMessageFileAttachments,
+  type MessageFileAttachment,
   mergeMessagesByDbId,
   parseSessionMessages,
   reloadAndMergeSessionMessages,
@@ -347,7 +349,12 @@ describe("extractMessageFileAttachments", () => {
     ]
 
     expect(extractMessageFileAttachments(blocks)).toEqual([
-      { kind: "path", path: "/repo/generated", language: "typescript" },
+      {
+        kind: "path",
+        path: "/repo/generated",
+        language: "typescript",
+        diff: blocks[0].type === "tool_call" ? blocks[0].tool.metadata : null,
+      },
     ])
   })
 
@@ -376,7 +383,12 @@ describe("extractMessageFileAttachments", () => {
     ]
 
     expect(extractMessageFileAttachments(blocks)).toEqual([
-      { kind: "path", path: "/repo/generated", language: "typescript" },
+      {
+        kind: "path",
+        path: "/repo/generated",
+        language: "typescript",
+        diff: blocks[0].type === "tool_call" ? blocks[0].tool.metadata : null,
+      },
     ])
   })
 })
@@ -1564,5 +1576,55 @@ describe("reloadAndMergeSessionMessages", () => {
     const merged = sessionCacheRef.current.get("s1")
     expect(merged).toHaveLength(3)
     expect(merged?.filter((msg) => msg.role === "event" && !msg.dbId)).toHaveLength(2)
+  })
+})
+
+describe("modified-file snapshot deduplication", () => {
+  const change: FileChangeMetadata = {
+    kind: "file_change",
+    path: "/repo/a.ts",
+    action: "create",
+    before: null,
+    after: "first",
+    linesAdded: 1,
+    linesRemoved: 0,
+    language: "typescript",
+    truncated: false,
+  }
+  test("takes the latest snapshot without replacing it with the same tool's text-result fallback", () => {
+    const latest = { ...change, action: "edit" as const, before: "first", after: "second" }
+    const blocks: ContentBlock[] = [change, latest].map((metadata, i) => ({
+      type: "tool_call",
+      tool: {
+        callId: String(i),
+        name: "edit",
+        arguments: JSON.stringify({ path: change.path }),
+        result: "Successfully edited file",
+        metadata,
+      },
+    }))
+    expect(extractMessageFileAttachments(blocks)).toEqual([
+      { kind: "path", path: change.path, language: change.language, diff: latest },
+    ])
+  })
+  test("clears an old snapshot when a later successful edit lost metadata, without mutating prior footer groups", () => {
+    const prior: MessageFileAttachment[] = [
+      { kind: "path", path: change.path, language: "typescript", diff: change },
+    ]
+    const latest = extractMessageFileAttachments([
+      {
+        type: "tool_call",
+        tool: {
+          callId: "lost",
+          name: "edit",
+          arguments: JSON.stringify({ path: change.path }),
+          result: "Successfully edited file",
+        },
+      },
+    ])
+    expect(mergeMessageFileAttachments(prior, latest)).toEqual([
+      { kind: "path", path: change.path, language: "typescript", diff: null },
+    ])
+    expect(prior[0]).toMatchObject({ diff: change })
   })
 })

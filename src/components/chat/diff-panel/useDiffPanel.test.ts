@@ -81,3 +81,14 @@ describe("useDiffPanel Git review state", () => {
     expect(result.current.gitContext).toBeNull()
   })
 })
+
+it("opens an empty tool diff and clears the previous Git review context", () => {
+  const { result } = renderHook(() => useDiffPanel())
+  act(() => result.current.openGitDiff(snapshot, "session-1"))
+  const nonce = result.current.openNonce
+  act(() => result.current.openDiff({ kind: "file_changes", changes: [] }))
+  expect(result.current.showPanel).toBe(true)
+  expect(result.current.activeChanges).toEqual([])
+  expect(result.current.gitContext).toBeNull()
+  expect(result.current.openNonce).toBe(nonce + 1)
+})

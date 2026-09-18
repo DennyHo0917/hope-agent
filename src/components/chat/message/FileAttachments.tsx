@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils"
 import { basename } from "@/lib/path"
 import { FileMimeIcon } from "./FileCard"
 import type { MessageFileAttachment } from "../chatUtils"
+import type { FileChangeMetadata, FileChangesMetadata } from "@/types/chat"
+import { fileChangeDiffPayload } from "./fileChangeSummary"
 import { FileContextMenu, FileActionsMoreButton } from "@/components/chat/files/FileActionMenu"
 import { useFileResource } from "@/components/chat/files/useFileResource"
 import type { PreviewTarget } from "@/components/chat/files/useFilePreview"
@@ -15,6 +17,7 @@ const DEFAULT_VISIBLE_FILE_ATTACHMENTS = 6
 interface FileAttachmentsProps {
   files: MessageFileAttachment[]
   sessionId?: string | null
+  onOpenDiff?: (payload: FileChangeMetadata | FileChangesMetadata) => void
 }
 
 function attachmentKey(file: MessageFileAttachment): string {
@@ -43,15 +46,16 @@ function targetFor(file: MessageFileAttachment, sessionId?: string | null): Prev
       }
 }
 
-/** A single modified-file chip: primary click = preview/open/download by kind ×
- *  mode; right-click + ⋯ = the full action menu. */
+/** Modified files open their stored change; media and generic output URLs keep
+ *  the file action policy. Right-click + ⋯ still preview the current file. */
 function AttachmentRow({
   file,
   sessionId,
+  onOpenDiff,
 }: {
   file: MessageFileAttachment
-  sessionId?: string | null
-}) {
+} & Pick<FileAttachmentsProps, "sessionId" | "onOpenDiff">) {
+  const { t } = useTranslation()
   const target = useMemo(() => targetFor(file, sessionId), [file, sessionId])
   const overrides = useMemo(() => ({ sessionId }), [sessionId])
   const { primary, run } = useFileResource(target, overrides)
@@ -61,7 +65,18 @@ function AttachmentRow({
       <span className="inline-flex items-center gap-0.5 rounded-md bg-muted/50">
         <button
           type="button"
-          onClick={() => run(primary)}
+          data-ha-title-tip={
+            file.kind === "path" && file.diff !== undefined && onOpenDiff
+              ? t("diffPanel.openDiff", "查看 diff")
+              : undefined
+          }
+          onClick={() => {
+            if (file.kind === "path" && file.diff !== undefined && onOpenDiff) {
+              onOpenDiff(fileChangeDiffPayload(file.diff))
+            } else {
+              void run(primary)
+            }
+          }}
           className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[13px] text-foreground/70 transition-colors hover:bg-muted hover:text-foreground max-w-[240px]"
         >
           <FileMimeIcon
@@ -77,7 +92,7 @@ function AttachmentRow({
   )
 }
 
-function FileAttachments({ files, sessionId }: FileAttachmentsProps) {
+function FileAttachments({ files, sessionId, onOpenDiff }: FileAttachmentsProps) {
   const { t } = useTranslation()
   const [expanded, setExpanded] = useState(false)
   if (files.length === 0) return null
@@ -98,7 +113,12 @@ function FileAttachments({ files, sessionId }: FileAttachmentsProps) {
       </div>
       <div className="flex flex-wrap gap-1.5">
         {visibleFiles.map((file) => (
-          <AttachmentRow key={attachmentKey(file)} file={file} sessionId={sessionId} />
+          <AttachmentRow
+            key={attachmentKey(file)}
+            file={file}
+            sessionId={sessionId}
+            onOpenDiff={onOpenDiff}
+          />
         ))}
       </div>
       {hasOverflow && (
@@ -106,7 +126,12 @@ function FileAttachments({ files, sessionId }: FileAttachmentsProps) {
           <AnimatedCollapse open={expanded} durationMs={180}>
             <div className="flex flex-wrap gap-1.5 pt-1.5">
               {hiddenFiles.map((file) => (
-                <AttachmentRow key={attachmentKey(file)} file={file} sessionId={sessionId} />
+                <AttachmentRow
+                  key={attachmentKey(file)}
+                  file={file}
+                  sessionId={sessionId}
+                  onOpenDiff={onOpenDiff}
+                />
               ))}
             </div>
           </AnimatedCollapse>

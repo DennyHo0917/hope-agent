@@ -94,6 +94,8 @@ Plain HTML files (not the "managed" HTML produced by Artifacts / Canvas) default
 
 > "The right-side panel" here refers to the whole tab-dock area as a single, unnamed surface—there is no separate product name for it in the UI. "Workspace" is now just one of many tabs (the one that aggregates task progress); don't conflate the two.
 
+Click a modified-file chip below a reply, or a workspace filename with a stored change snapshot, to open the before/after diff from that tool operation. Repeated edits to the same path show the latest change. New files display all additions, including Git-ignored files. To view the file's current contents, choose Preview from its context menu or `⋯` menu. Modified text files with missing snapshots or only an older history summary show “No diff data”; partial snapshots retain a truncation notice. Media outputs without tool snapshots and read-only files keep their usual open or preview action.
+
 ### Message rendering
 
 Replies support full Markdown, syntax-highlighted code, math formulas (KaTeX), and Mermaid diagrams. In the desktop app, the AI can also write clickable local path links (clicking opens them in the file manager).

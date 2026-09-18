@@ -32,7 +32,8 @@ import type {
   WorkspaceEnvironmentSnapshot,
 } from "@/lib/transport"
 import type { BackgroundJobSnapshot } from "@/types/background-jobs"
-import type { Message } from "@/types/chat"
+import type { FileChangeMetadata, Message } from "@/types/chat"
+import type { SessionFileEntry } from "./useSessionFileChanges"
 import WorkspacePanel from "./WorkspacePanel"
 import type { GoalSnapshot, GoalWatchdogFinding } from "./useGoal"
 import type { LoopSchedule, LoopSnapshot, LoopWatchdogFinding } from "./useLoopSchedules"
@@ -42,6 +43,19 @@ import type {
   WorkflowScriptPreview,
   WorkflowWatchdogFinding,
 } from "./useWorkflowRuns"
+
+const artifactMock = vi.hoisted(() => ({
+  files: [] as SessionFileEntry[],
+  run: vi.fn(async () => "executed"),
+}))
+vi.mock("@/components/chat/files/useFileResource", () => ({
+  useFileResource: (target: { path?: string }) => ({
+    kind: target.path?.endsWith(".png") ? "image" : "code",
+    primary: "preview",
+    menu: ["preview"],
+    run: artifactMock.run,
+  }),
+}))
 
 const envMock = vi.hoisted(() => ({
   state: {
@@ -101,7 +115,7 @@ vi.mock("./useWorkspaceEnvironment", () => ({
 
 vi.mock("./useWorkspaceArtifacts", () => ({
   useWorkspaceArtifacts: () => ({
-    files: [],
+    files: artifactMock.files,
     sources: [],
     browser: [],
     filesTruncated: false,
@@ -111,6 +125,8 @@ vi.mock("./useWorkspaceArtifacts", () => ({
 }))
 
 beforeEach(() => {
+  artifactMock.files = []
+  artifactMock.run.mockClear()
   configure({ asyncUtilTimeout: 5_000 })
   Object.defineProperty(Element.prototype, "hasPointerCapture", {
     configurable: true,
@@ -5600,5 +5616,65 @@ describe("WorkspacePanel workflow section", () => {
         }),
       )
     })
+  })
+})
+
+describe("workspace file diff navigation", () => {
+  const diff: FileChangeMetadata = {
+    kind: "file_change",
+    path: "/repo/demo-tour/ignored.html",
+    action: "create",
+    before: null,
+    after: "<h1>stored</h1>",
+    linesAdded: 1,
+    linesRemoved: 0,
+    language: "html",
+    truncated: false,
+  }
+  function entry(snapshot: FileChangeMetadata | null): SessionFileEntry {
+    return {
+      path: diff.path,
+      kind: "modified",
+      diff: snapshot,
+      readLines: null,
+      linesAdded: 1,
+      linesRemoved: 0,
+      language: "html",
+    }
+  }
+
+  it("opens the loaded tool snapshot from the filename and keeps preview in the menu", async () => {
+    artifactMock.files = [entry(diff)]
+    const onOpenDiff = vi.fn()
+    renderPanel(null, { onOpenDiff })
+    fireEvent.click(screen.getByRole("button", { name: /ignored.html/ }))
+    expect(onOpenDiff).toHaveBeenCalledWith(diff)
+    expect(artifactMock.run).not.toHaveBeenCalled()
+    fireEvent.contextMenu(screen.getByRole("button", { name: /ignored.html/ }))
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Preview" }))
+    expect(artifactMock.run).toHaveBeenCalledWith("preview")
+  })
+
+  it("opens the empty diff state for backend-only modified text", () => {
+    artifactMock.files = [entry(null)]
+    const onOpenDiff = vi.fn()
+    renderPanel(null, { onOpenDiff })
+    fireEvent.click(screen.getByRole("button", { name: /ignored.html/ }))
+    expect(onOpenDiff).toHaveBeenCalledWith({ kind: "file_changes", changes: [] })
+    expect(screen.getByRole("button", { name: "查看 diff" })).toBeTruthy()
+    expect(artifactMock.run).not.toHaveBeenCalled()
+  })
+
+  it("keeps read-only and generated media primary previews", () => {
+    artifactMock.files = [
+      { ...entry(null), kind: "read", path: "/repo/readme.ts" },
+      { ...entry(null), path: "/repo/generated.png", language: null },
+    ]
+    const onOpenDiff = vi.fn()
+    renderPanel(null, { onOpenDiff })
+    fireEvent.click(screen.getByRole("button", { name: /readme.ts/ }))
+    fireEvent.click(screen.getByRole("button", { name: /generated.png/ }))
+    expect(artifactMock.run).toHaveBeenCalledTimes(2)
+    expect(onOpenDiff).not.toHaveBeenCalled()
   })
 })

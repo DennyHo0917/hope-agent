@@ -17,9 +17,8 @@ export interface GitDiffContext {
  * Local state for the right-side diff panel. Mirrors the PlanPanel /
  * CanvasPanel pattern: visibility + width + active payload.
  *
- * `activeChanges` is always normalized to a non-empty array regardless of
- * whether the source was a single `file_change` or a multi-file
- * `file_changes` payload, so the panel renderer has one shape to handle.
+ * `activeChanges` is normalized to an array. An explicitly opened empty
+ * `file_changes` payload keeps the panel visible with its no-data state.
  */
 export interface UseDiffPanel {
   showPanel: boolean

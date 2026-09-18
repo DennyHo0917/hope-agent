@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { UI_MOTION } from "@/components/ui/motion"
 import {
   extractMessageFileAttachments,
+  mergeMessageFileAttachments,
   formatDuration,
   isCenteredSystemMessage,
   isUserAlignedMessage,
@@ -283,35 +284,6 @@ function textContentFromBlocks(blocks: NonNullable<Message["contentBlocks"]>): s
     }
   }
   return texts.join("\n\n")
-}
-
-function messageFileAttachmentKey(file: MessageFileAttachment): string {
-  return file.kind === "media"
-    ? `media:${file.item.localPath || file.item.url || file.item.name}`
-    : `path:${file.path}`
-}
-
-function mergeMessageFileAttachments(
-  ...groups: Array<readonly MessageFileAttachment[] | undefined>
-): MessageFileAttachment[] {
-  const merged = new Map<string, MessageFileAttachment>()
-  for (const group of groups) {
-    for (const file of group ?? []) {
-      const key = messageFileAttachmentKey(file)
-      const existing = merged.get(key)
-      if (!existing) {
-        merged.set(key, file)
-      } else if (
-        existing.kind === "path" &&
-        file.kind === "path" &&
-        !existing.language &&
-        file.language
-      ) {
-        existing.language = file.language
-      }
-    }
-  }
-  return [...merged.values()]
 }
 
 function filesFromRenderItem(item: MessageRenderItem): MessageFileAttachment[] {
@@ -637,8 +609,7 @@ function buildMessageRenderRows(
       ? [...foldedItems, finalAssistantSplit.prefixItem]
       : foldedItems
     const hoistedFiles = mergeMessageFileAttachments(
-      ...rawCollapsedItems.map(filesFromRenderItem),
-      ...rawCollapsedItems.map((collapsedItem) => collapsedItem.footerFiles),
+      ...rawCollapsedItems.flatMap((item) => [item.footerFiles, filesFromRenderItem(item)]),
     )
     const scheduleCards = scheduleCardsFromItems(rawCollapsedItems)
     const collapsedItems = hideScheduleCardsOnItems(hideFooterFilesOnItems(rawCollapsedItems))
@@ -646,7 +617,7 @@ function buildMessageRenderRows(
       hoistedFiles.length > 0
         ? {
             ...finalAssistantItem,
-            footerFiles: mergeMessageFileAttachments(finalAssistantItem.footerFiles, hoistedFiles),
+            footerFiles: mergeMessageFileAttachments(hoistedFiles, finalAssistantItem.footerFiles),
           }
         : finalAssistantItem
     const finalSplitItemWithHoistedFiles: MessageRenderItem | undefined =
@@ -654,8 +625,8 @@ function buildMessageRenderRows(
         ? {
             ...finalAssistantSplit.finalItem,
             footerFiles: mergeMessageFileAttachments(
-              finalAssistantSplit.finalItem.footerFiles,
               hoistedFiles,
+              finalAssistantSplit.finalItem.footerFiles,
             ),
           }
         : finalAssistantSplit?.finalItem
