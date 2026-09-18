@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.50.0] - 2026-09-19
+
 ### Fixed
 
 - **改写文件差异入口**：回复中的改写文件标签与工作台文件行优先展示已保存的工具差异，新建文件显示全新增；缺失快照明确提示，当前文件预览仍可从菜单进入。 (#728)
