@@ -65,8 +65,8 @@ jobs:
           echo "dmg_intel=Hope.Agent_${version}_x64.dmg" >> "$GITHUB_OUTPUT"
 
       # Download arm64 DMG (required) and Intel DMG (best-effort). The
-      # Intel lane in release.yml is best-effort (continue_on_error) and
-      # can fail when macos-13 runners are congested — in that case the
+      # independent build-macos-x64.yml lane backfills Intel assets after
+      # publication. Until that build succeeds, the
       # release ships arm64-only and we render the single-arch cask
       # template below.
       - name: Download DMGs from release
