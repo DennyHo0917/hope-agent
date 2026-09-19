@@ -128,21 +128,29 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm tauri build --target x86_64-apple-darwin
 
-      - name: Upload Intel DMG to release
-        if: github.event.inputs.dry_run != 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare Intel DMG for upload
+        id: intel_dmg
         run: |
           set -euo pipefail
           version="${RELEASE_TAG#v}"
-          dmg="target/x86_64-apple-darwin/release/bundle/dmg/Hope.Agent_${version}_x64.dmg"
+          dmg="target/x86_64-apple-darwin/release/bundle/dmg/Hope Agent_${version}_x64.dmg"
           if [ ! -f "$dmg" ]; then
             echo "::error::Intel DMG not found at $dmg"
             ls "target/x86_64-apple-darwin/release/bundle/dmg/" || true
             exit 1
           fi
-          gh release upload "${RELEASE_TAG}" "$dmg" --clobber
-          echo "Uploaded $dmg to ${RELEASE_TAG}"
+          # Tauri keeps the product-name space locally; release consumers use
+          # the canonical dotted asset name. Validate this path in dry-runs too.
+          mkdir -p intel-dmg-bundle
+          asset="intel-dmg-bundle/Hope.Agent_${version}_x64.dmg"
+          cp "$dmg" "$asset"
+          echo "path=$asset" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Intel DMG to release
+        if: github.event.inputs.dry_run != 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${RELEASE_TAG}" "${{ steps.intel_dmg.outputs.path }}" --clobber
 
       # Bundle + sign bare binary for headless self-update (Intel Mac
       # users running `hope-agent server` or `hope-agent acp` on Intel
@@ -257,6 +265,6 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
-            target/x86_64-apple-darwin/release/bundle/dmg/*.dmg
+            ${{ steps.intel_dmg.outputs.path }}
             ${{ steps.bare_binary.outputs.archive }}
             ${{ steps.bare_binary.outputs.sig }}
