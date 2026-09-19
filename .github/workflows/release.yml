@@ -58,15 +58,10 @@ jobs:
             # 173 分钟。dry-run 实测 16 档为 103 分钟，代价是裸二进制
             # 192.4 → 225.3 MB，用户实际下载的压缩包 84.8 → 95.3 MB（+12%）。
             codegen_units: "16"
-          # macOS x64 lane remains disabled (since v0.2.0). GitHub-hosted
-          # macos-13 Intel runners are capacity-constrained and frequently
-          # queue >1h. An earlier v0.2.1 attempt to re-add this lane with
-          # `continue-on-error: true` did not help — Actions `needs:` waits
-          # for queued/running jobs regardless of `continue-on-error`, so
-          # patch-manifest still blocked on macos-x64. Long-term recovery
-          # needs either cross-compile on macos-14 or a self-hosted Intel
-          # runner. Intel Mac users continue to run the arm64 bundle through
-          # Rosetta 2 (same as v0.1.x).
+          # macOS x64 is built independently by build-macos-x64.yml on
+          # macos-15-intel, so an Intel build cannot block this matrix or
+          # patch-manifest. Intel Macs require the x64 package; Rosetta 2
+          # cannot run an arm64 bundle on Intel hardware.
           # Linux x64 — AppImage + deb.
           # ubuntu-24.04 is required because xcap (screen capture) pulls
           # libspa-sys v0.9, which expects pipewire ≥ 1.0 headers. The
