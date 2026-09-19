@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **Intel Mac 安装包构建**：修复 Intel 版本因使用已退役构建环境而长期无法产出的问题，恢复独立 x64 安装包构建。
+- **Intel Mac 安装包构建**：修复 Intel 版本因使用已退役构建环境而长期无法产出的问题，恢复独立 x64 安装包构建。 (#731)
 
 ## [0.50.0] - 2026-09-19
 
