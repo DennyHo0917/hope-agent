@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.51.0] - 2026-09-20
+
 ### Fixed
 
 - **Intel Mac 安装包构建**：修复已退役构建环境和安装包上传路径不匹配导致 Intel 版本无法交付的问题，恢复独立 x64 安装包构建与上传。 (#731)
