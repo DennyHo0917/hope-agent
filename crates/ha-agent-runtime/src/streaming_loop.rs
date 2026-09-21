@@ -34,12 +34,14 @@ use crate::context_compact::group_admission::{
     RequestCapacityCount, ResultAdmissionPriority, ResultCandidateSet,
 };
 use crate::context_compact::{set_tool_result_unit_text, tool_result_units, ToolResultLocator};
+use crate::provider::ThinkingStyle;
 use crate::tool_defs::ToolExecContext;
 use crate::tools;
 
 fn provider_reasoning_is_hard_disabled(
     provider: &LlmProvider,
     effective_effort: Option<&str>,
+    thinking_style: &ThinkingStyle,
 ) -> bool {
     matches!(
         provider,
@@ -48,7 +50,8 @@ fn provider_reasoning_is_hard_disabled(
             model,
             ..
         } if crate::agent::config::is_direct_deepseek(base_url, model)
-            && matches!(effective_effort, Some("none"))
+            && (matches!(effective_effort, Some("none"))
+                || matches!(thinking_style, ThinkingStyle::None))
     )
 }
 
@@ -2933,6 +2936,7 @@ impl RuntimeAgentExt for AssistantAgent {
                 provider_reasoning_is_hard_disabled(
                     self.runtime_provider(),
                     effort_effective.as_deref(),
+                    self.runtime_thinking_style(),
                 ),
             );
             if let Some(logger) = crate::get_logger() {
@@ -4689,7 +4693,8 @@ mod tests {
         restore_model_call_order, run_serialized_round_environment_scan,
         stamp_checkpointed_subagent_dispatch, terminal_assistant_text_for_history,
         validate_tier3_current_group_installation, C0RecoveryCursor, CapturedToolAdmission,
-        LlmProvider, Tier3PublicationState, Tier3RecoverySnapshot, ToolResultProjectionCandidate,
+        LlmProvider, ThinkingStyle, Tier3PublicationState, Tier3RecoverySnapshot,
+        ToolResultProjectionCandidate,
     };
     use crate::agent::streaming_adapter::{ExecutedTool, ToolDispatchSideOutput};
     use crate::async_jobs::{synthetic_started_result, JobOrigin};
@@ -4729,7 +4734,7 @@ mod tests {
     }
 
     #[test]
-    fn only_direct_deepseek_effective_none_is_a_provider_hard_off() {
+    fn only_direct_deepseek_effective_or_style_none_is_a_provider_hard_off() {
         let direct = LlmProvider::OpenAIChat {
             api_key: String::new(),
             base_url: "https://api.deepseek.com".to_string(),
@@ -4741,12 +4746,26 @@ mod tests {
             model: "deepseek-v4-flash".to_string(),
         };
 
-        assert!(provider_reasoning_is_hard_disabled(&direct, Some("none")));
+        assert!(provider_reasoning_is_hard_disabled(
+            &direct,
+            Some("none"),
+            &ThinkingStyle::Openai
+        ));
+        assert!(provider_reasoning_is_hard_disabled(
+            &direct,
+            Some("medium"),
+            &ThinkingStyle::None
+        ));
         assert!(!provider_reasoning_is_hard_disabled(
             &direct,
-            Some("medium")
+            Some("medium"),
+            &ThinkingStyle::Openai
         ));
-        assert!(!provider_reasoning_is_hard_disabled(&relay, Some("none")));
+        assert!(!provider_reasoning_is_hard_disabled(
+            &relay,
+            Some("none"),
+            &ThinkingStyle::None
+        ));
     }
 
     #[test]
