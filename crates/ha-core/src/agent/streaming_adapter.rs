@@ -254,7 +254,8 @@ pub enum PreparedRequestVariant {
     OpenAIResponses,
     Codex,
     OpenAIChat {
-        thinking_disabled: bool,
+        thinking_parameters_disabled: bool,
+        reasoning_output_disabled: bool,
         model_supports_vision: bool,
         prompt_cache_key_included: bool,
         proactive_vision_notice: bool,

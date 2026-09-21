@@ -76,7 +76,8 @@ impl OpenAIChatStreamingAdapter<'_> {
     fn prepare_chat_variant(
         &self,
         req: &RoundRequest<'_>,
-        thinking_disabled: bool,
+        thinking_parameters_disabled: bool,
+        reasoning_output_disabled: bool,
         model_supports_vision: bool,
     ) -> Result<PreparedProviderRequest> {
         if crate::agent::config::is_direct_openai_astra(self.base_url, self.model)
@@ -87,7 +88,7 @@ impl OpenAIChatStreamingAdapter<'_> {
                 "GPT-6 Astra tool calling requires the OpenAI Responses API; change this provider's API type in settings.".to_string(),
             ).into());
         }
-        let thinking_style = if thinking_disabled {
+        let thinking_style = if thinking_parameters_disabled {
             &ThinkingStyle::None
         } else {
             self.thinking_style
@@ -112,7 +113,8 @@ impl OpenAIChatStreamingAdapter<'_> {
             req.reasoning_effort,
             req.vision_bridge_available,
             PreparedRequestVariant::OpenAIChat {
-                thinking_disabled,
+                thinking_parameters_disabled,
+                reasoning_output_disabled,
                 model_supports_vision,
                 prompt_cache_key_included,
                 proactive_vision_notice,
@@ -721,9 +723,14 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
             .map(|pc| pc.model_supports_vision(self.model))
             .unwrap_or(true)
             && !self.vision_runtime_disabled();
-        let thinking_disabled =
+        let thinking_parameters_disabled =
             req.reasoning_disabled || matches!(self.thinking_style, ThinkingStyle::None);
-        self.prepare_chat_variant(req, thinking_disabled, model_supports_vision)
+        self.prepare_chat_variant(
+            req,
+            thinking_parameters_disabled,
+            req.reasoning_disabled,
+            model_supports_vision,
+        )
     }
 
     fn reprepare_round_request(
@@ -733,7 +740,8 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
         reason: ProviderReprepareReason,
     ) -> Result<PreparedProviderRequest> {
         let PreparedRequestVariant::OpenAIChat {
-            thinking_disabled,
+            thinking_parameters_disabled,
+            reasoning_output_disabled,
             model_supports_vision,
             ..
         } = previous.variant
@@ -742,7 +750,8 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
         };
         self.prepare_chat_variant(
             req,
-            thinking_disabled || reason == ProviderReprepareReason::Thinking,
+            thinking_parameters_disabled || reason == ProviderReprepareReason::Thinking,
+            reasoning_output_disabled,
             model_supports_vision && reason != ProviderReprepareReason::Vision,
         )
     }
@@ -756,7 +765,8 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
         observer: &dyn ProviderDispatchObserver,
     ) -> Result<RoundOutcome> {
         let PreparedRequestVariant::OpenAIChat {
-            thinking_disabled,
+            thinking_parameters_disabled,
+            reasoning_output_disabled,
             model_supports_vision,
             prompt_cache_key_included,
             proactive_vision_notice,
@@ -808,7 +818,7 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
                 }
                 .into());
             }
-            if !thinking_disabled {
+            if !thinking_parameters_disabled {
                 let active_style = self.thinking_style;
                 if let Some(autofix) = maybe_auto_disable_thinking(
                     self.provider_config,
@@ -847,9 +857,14 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
             .into());
         }
 
-        let (text, tool_calls, mut usage, thinking_text, ttft_ms) =
-            parse_chat_completions_sse(resp, request_start, thinking_disabled, cancel, on_delta)
-                .await?;
+        let (text, tool_calls, mut usage, thinking_text, ttft_ms) = parse_chat_completions_sse(
+            resp,
+            request_start,
+            reasoning_output_disabled,
+            cancel,
+            on_delta,
+        )
+        .await?;
         if cancel.load(Ordering::SeqCst) {
             return Ok(super::cancel::cancelled_round_outcome());
         }
@@ -1067,7 +1082,7 @@ fn decode_chat_completion_sse_data(data: &str) -> Result<Value> {
 pub(crate) async fn parse_chat_completions_sse(
     resp: reqwest::Response,
     request_start: std::time::Instant,
-    thinking_disabled: bool,
+    reasoning_output_disabled: bool,
     cancel: &Arc<AtomicBool>,
     on_delta: &(dyn for<'s> Fn(&'s str) + Send + Sync),
 ) -> Result<(
@@ -1203,7 +1218,7 @@ pub(crate) async fn parse_chat_completions_sse(
                         if let Some(reasoning) =
                             delta.get("reasoning_content").and_then(|c| c.as_str())
                         {
-                            if !reasoning.is_empty() && !thinking_disabled {
+                            if !reasoning.is_empty() && !reasoning_output_disabled {
                                 if first_token_time.is_none() {
                                     first_token_time =
                                         Some(request_start.elapsed().as_millis() as u64);
@@ -1217,7 +1232,7 @@ pub(crate) async fn parse_chat_completions_sse(
                         // thinking via <think> tags. With effort=none, discard entirely.
                         if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
                             let (text_part, think_part) = think_filter.process(content);
-                            if !think_part.is_empty() && !thinking_disabled {
+                            if !think_part.is_empty() && !reasoning_output_disabled {
                                 emit_thinking_delta(&on_delta, &think_part);
                                 collected_thinking.push_str(&think_part);
                             }
@@ -1696,7 +1711,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_disabled_signal_survives_openai_chat_request_preparation() {
+    fn request_preparation_separates_parameterless_style_from_disabled_output() {
         let history = Vec::new();
         let mut req = super::super::test_support::round_request(&history);
         req.reasoning_effort = None;
@@ -1717,7 +1732,8 @@ mod tests {
         assert!(matches!(
             prepared.variant,
             PreparedRequestVariant::OpenAIChat {
-                thinking_disabled: true,
+                thinking_parameters_disabled: true,
+                reasoning_output_disabled: true,
                 ..
             }
         ));
@@ -1732,7 +1748,8 @@ mod tests {
         assert!(matches!(
             prepared.variant,
             PreparedRequestVariant::OpenAIChat {
-                thinking_disabled: true,
+                thinking_parameters_disabled: true,
+                reasoning_output_disabled: false,
                 ..
             }
         ));

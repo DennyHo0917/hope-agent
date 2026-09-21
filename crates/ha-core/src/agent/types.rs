@@ -234,6 +234,10 @@ pub struct AssistantAgent {
     pub(super) user_agent: String,
     /// Thinking/reasoning parameter format
     pub(super) thinking_style: ThinkingStyle,
+    /// The selected model explicitly declares reasoning unsupported. This is
+    /// distinct from `ThinkingStyle::None`, which can mean the backend needs
+    /// no request parameter while still returning reasoning content.
+    pub(super) reasoning_hard_disabled: bool,
     /// Conversation history persisted across chat() calls
     pub(super) conversation_history: std::sync::Mutex<Vec<serde_json::Value>>,
     /// Current agent ID (for memory context loading)

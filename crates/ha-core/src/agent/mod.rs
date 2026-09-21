@@ -425,6 +425,7 @@ impl AssistantAgent {
             },
             user_agent: USER_AGENT.to_string(),
             thinking_style: ThinkingStyle::Anthropic,
+            reasoning_hard_disabled: false,
             conversation_history: std::sync::Mutex::new(Vec::new()),
             agent_id: crate::agent_loader::DEFAULT_AGENT_ID.to_string(),
             turn_id: None,
@@ -508,6 +509,7 @@ impl AssistantAgent {
             },
             user_agent: USER_AGENT.to_string(),
             thinking_style: ThinkingStyle::Openai,
+            reasoning_hard_disabled: false,
             conversation_history: std::sync::Mutex::new(Vec::new()),
             agent_id: crate::agent_loader::DEFAULT_AGENT_ID.to_string(),
             turn_id: None,
@@ -720,11 +722,15 @@ impl AssistantAgent {
             .map(|m| m.context_window)
             .unwrap_or(200_000);
         let effective_thinking_style = config.effective_thinking_style_for_model(model_id);
+        let reasoning_hard_disabled = config
+            .model_config(model_id)
+            .is_some_and(|model| !model.reasoning);
 
         Self {
             provider,
             user_agent: config.user_agent.clone(),
             thinking_style: effective_thinking_style,
+            reasoning_hard_disabled,
             conversation_history: std::sync::Mutex::new(Vec::new()),
             agent_id: crate::agent_loader::DEFAULT_AGENT_ID.to_string(),
             turn_id: None,
@@ -5080,6 +5086,11 @@ impl AssistantAgent {
     }
 
     #[doc(hidden)]
+    pub fn runtime_reasoning_hard_disabled(&self) -> bool {
+        self.reasoning_hard_disabled
+    }
+
+    #[doc(hidden)]
     pub fn runtime_provider_config(&self) -> Option<&ProviderConfig> {
         self.provider_config.as_deref()
     }
@@ -5100,6 +5111,50 @@ mod tests {
         AssistantAgent,
     };
     use crate::memory::{claims::ClaimGraphEdge, episodes::MemoryProcedureRecord, MemoryScope};
+
+    #[test]
+    fn model_reasoning_capability_is_distinct_from_parameterless_style() {
+        use crate::provider::{ApiType, ModelConfig, ProviderConfig, ThinkingStyle};
+
+        let mut config = ProviderConfig::new(
+            "compatible".to_string(),
+            ApiType::OpenaiChat,
+            "http://127.0.0.1:8080".to_string(),
+            String::new(),
+        );
+        config.thinking_style = ThinkingStyle::None;
+        config.models.push(ModelConfig {
+            id: "model".to_string(),
+            name: "Model".to_string(),
+            input_types: vec!["text".to_string()],
+            context_window: 32_768,
+            max_tokens: 8_192,
+            reasoning: true,
+            thinking_style: None,
+            cost_input: None,
+            cost_output: None,
+        });
+
+        let parameterless = AssistantAgent::build_from_key(
+            &config,
+            "model",
+            "synthetic",
+            "http://127.0.0.1:8080",
+            None,
+        );
+        assert_eq!(parameterless.runtime_thinking_style(), &ThinkingStyle::None);
+        assert!(!parameterless.runtime_reasoning_hard_disabled());
+
+        config.models[0].reasoning = false;
+        let hard_disabled = AssistantAgent::build_from_key(
+            &config,
+            "model",
+            "synthetic",
+            "http://127.0.0.1:8080",
+            None,
+        );
+        assert!(hard_disabled.runtime_reasoning_hard_disabled());
+    }
 
     #[test]
     fn compaction_preserves_typed_provider_terminal_reasons() {

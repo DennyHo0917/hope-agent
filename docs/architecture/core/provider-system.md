@@ -505,9 +505,11 @@ flowchart LR
 
 - 支持 `<think>` / `<thinking>` / `<thought>`（大小写不敏感）
 - 正确处理跨 chunk 边界被切断的部分标签
-- 当 `reasoning_effort == "none"` 时，在接收边界同时丢弃标签内 thinking 与
-  OpenAI 兼容流的原生 `reasoning_content`；二者都不发界面事件，也不进入
-  `conversation_history`
+- 当用户明确选择 `reasoning_effort == "none"`，或模型声明 `reasoning=false`
+  时，在接收边界同时丢弃标签内 thinking 与 OpenAI 兼容流的原生
+  `reasoning_content`；二者都不发界面事件，也不进入 `conversation_history`。
+  `ThinkingStyle::None` 本身只表示不发送推理参数；若模型仍声明支持 reasoning，
+  兼容端返回的推理内容继续保留
 
 ### 5.3 多轮 Thinking 回传
 

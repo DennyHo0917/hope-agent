@@ -37,8 +37,8 @@ use crate::context_compact::{set_tool_result_unit_text, tool_result_units, ToolR
 use crate::tool_defs::ToolExecContext;
 use crate::tools;
 
-fn provider_reasoning_is_disabled(explicitly_disabled: bool, effective: Option<&str>) -> bool {
-    explicitly_disabled || matches!(effective, Some("none"))
+fn reasoning_output_is_disabled(explicitly_disabled: bool, model_hard_disabled: bool) -> bool {
+    explicitly_disabled || model_hard_disabled
 }
 
 struct DurableProviderDispatchObserver {
@@ -2908,8 +2908,10 @@ impl RuntimeAgentExt for AssistantAgent {
                 self.runtime_provider(),
                 effort_requested.as_deref(),
             );
-            let reasoning_disabled =
-                provider_reasoning_is_disabled(reasoning_disabled, effort_effective.as_deref());
+            let reasoning_disabled = reasoning_output_is_disabled(
+                reasoning_disabled,
+                self.runtime_reasoning_hard_disabled(),
+            );
             if let Some(logger) = crate::get_logger() {
                 logger.log(
                     "debug",
@@ -4658,8 +4660,8 @@ mod tests {
         apply_tool_result_candidates, build_tool_result_candidates, can_bootstrap_mcp_catalog,
         collect_tool_schema_updates, extract_started_job_id, has_checkpointed_subagent_dispatch,
         local_tool_search_survived, locate_latest_tool_result_targets, merge_retry_hook_context,
-        provider_projection_current_group_hard_protected_start, provider_reasoning_is_disabled,
-        queued_message_for_provider, requires_local_mcp_tool_search, resolve_empty_round_outcome,
+        provider_projection_current_group_hard_protected_start, queued_message_for_provider,
+        reasoning_output_is_disabled, requires_local_mcp_tool_search, resolve_empty_round_outcome,
         restore_model_call_order, run_serialized_round_environment_scan,
         stamp_checkpointed_subagent_dispatch, terminal_assistant_text_for_history,
         validate_tier3_current_group_installation, C0RecoveryCursor, CapturedToolAdmission,
@@ -4695,11 +4697,10 @@ mod tests {
     }
 
     #[test]
-    fn provider_effective_none_preserves_the_disabled_response_filter() {
-        assert!(provider_reasoning_is_disabled(false, Some("none")));
-        assert!(provider_reasoning_is_disabled(true, None));
-        assert!(!provider_reasoning_is_disabled(false, None));
-        assert!(!provider_reasoning_is_disabled(false, Some("medium")));
+    fn only_explicit_or_model_capability_disables_reasoning_output() {
+        assert!(reasoning_output_is_disabled(true, false));
+        assert!(reasoning_output_is_disabled(false, true));
+        assert!(!reasoning_output_is_disabled(false, false));
     }
 
     #[test]
