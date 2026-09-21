@@ -721,7 +721,9 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
             .map(|pc| pc.model_supports_vision(self.model))
             .unwrap_or(true)
             && !self.vision_runtime_disabled();
-        self.prepare_chat_variant(req, req.reasoning_disabled, model_supports_vision)
+        let thinking_disabled =
+            req.reasoning_disabled || matches!(self.thinking_style, ThinkingStyle::None);
+        self.prepare_chat_variant(req, thinking_disabled, model_supports_vision)
     }
 
     fn reprepare_round_request(
@@ -1711,6 +1713,21 @@ mod tests {
             prepared_history_had_images: AtomicBool::new(false),
         };
 
+        let prepared = adapter.prepare_round_request(&req).unwrap();
+        assert!(matches!(
+            prepared.variant,
+            PreparedRequestVariant::OpenAIChat {
+                thinking_disabled: true,
+                ..
+            }
+        ));
+
+        req.reasoning_disabled = false;
+        let thinking_style = ThinkingStyle::None;
+        let adapter = OpenAIChatStreamingAdapter {
+            thinking_style: &thinking_style,
+            ..adapter
+        };
         let prepared = adapter.prepare_round_request(&req).unwrap();
         assert!(matches!(
             prepared.variant,
