@@ -246,11 +246,13 @@ fn apply_official_chat_effort(
     thinking_style: &ThinkingStyle,
     effort: Option<&str>,
 ) {
-    if !matches!(thinking_style, ThinkingStyle::Openai) {
-        return;
-    }
-    if crate::agent::config::is_direct_deepseek(base_url, model) {
-        let enabled = !matches!(effort, None | Some("none"));
+    if crate::agent::config::is_direct_deepseek(base_url, model)
+        && matches!(thinking_style, ThinkingStyle::Openai | ThinkingStyle::None)
+    {
+        // Model-level reasoning=false and an explicit None style are hard-off,
+        // even when the user's previously selected effort is still retained.
+        let enabled = matches!(thinking_style, ThinkingStyle::Openai)
+            && !matches!(effort, None | Some("none"));
         body["thinking"] = json!({"type": if enabled { "enabled" } else { "disabled" }});
         if enabled {
             body["reasoning_effort"] = json!(match effort {
@@ -263,6 +265,9 @@ fn apply_official_chat_effort(
                 .expect("chat body")
                 .remove("reasoning_effort");
         }
+        return;
+    }
+    if !matches!(thinking_style, ThinkingStyle::Openai) {
         return;
     }
     let Some(effort) = effort else { return };
@@ -1323,6 +1328,31 @@ pub(crate) async fn parse_chat_completions_sse(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn direct_deepseek_disabled_style_overrides_a_retained_effort() {
+        for effort in [None, Some("none"), Some("high"), Some("max")] {
+            let mut body = serde_json::json!({"reasoning_effort":"max"});
+            super::apply_official_chat_effort(
+                &mut body,
+                "https://api.deepseek.com/v1",
+                "deepseek-flash",
+                &crate::provider::ThinkingStyle::None,
+                effort,
+            );
+            assert_eq!(body["thinking"]["type"], "disabled");
+            assert!(body.get("reasoning_effort").is_none());
+            let mut relay = serde_json::json!({});
+            super::apply_official_chat_effort(
+                &mut relay,
+                "https://relay.example/v1",
+                "deepseek-flash",
+                &crate::provider::ThinkingStyle::None,
+                effort,
+            );
+            assert!(relay.get("thinking").is_none());
+        }
+    }
+
     #[test]
     fn direct_deepseek_toggle_and_max_do_not_apply_to_relays() {
         let style = crate::provider::ThinkingStyle::Openai;
