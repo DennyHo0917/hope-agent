@@ -748,10 +748,12 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
         else {
             anyhow::bail!("OpenAI Chat received an incompatible prepared request")
         };
+        let direct_deepseek_thinking_disabled = reason == ProviderReprepareReason::Thinking
+            && crate::agent::config::is_direct_deepseek(self.base_url, self.model);
         self.prepare_chat_variant(
             req,
             thinking_parameters_disabled || reason == ProviderReprepareReason::Thinking,
-            reasoning_output_disabled,
+            reasoning_output_disabled || direct_deepseek_thinking_disabled,
             model_supports_vision && reason != ProviderReprepareReason::Vision,
         )
     }
@@ -1466,7 +1468,7 @@ mod tests {
     };
     use crate::agent::api_types::FunctionCallItem;
     use crate::agent::streaming_adapter::{
-        PreparedRequestVariant, RoundRequest, StreamingChatAdapter,
+        PreparedRequestVariant, ProviderReprepareReason, RoundRequest, StreamingChatAdapter,
     };
     use crate::provider::ThinkingStyle;
     use std::collections::HashMap;
@@ -1753,6 +1755,42 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn direct_deepseek_thinking_reprepare_disables_reasoning_output() {
+        let history = Vec::new();
+        let mut req = super::super::test_support::round_request(&history);
+        req.reasoning_effort = Some("medium");
+        let thinking_style = ThinkingStyle::Openai;
+
+        for (base_url, model, expected_output_disabled) in [
+            ("https://api.deepseek.com/v1", "deepseek-flash", true),
+            ("https://relay.example/v1", "deepseek-flash", false),
+        ] {
+            let adapter = OpenAIChatStreamingAdapter {
+                api_key: "synthetic",
+                base_url,
+                model,
+                thinking_style: &thinking_style,
+                provider_config: None,
+                vision_runtime_disabled: Arc::new(AtomicBool::new(false)),
+                vision_notice_emitted: Arc::new(AtomicBool::new(false)),
+                prepared_history_had_images: AtomicBool::new(false),
+            };
+            let prepared = adapter.prepare_round_request(&req).unwrap();
+            let retried = adapter
+                .reprepare_round_request(&req, &prepared, ProviderReprepareReason::Thinking)
+                .unwrap();
+            assert!(matches!(
+                retried.variant,
+                PreparedRequestVariant::OpenAIChat {
+                    thinking_parameters_disabled: true,
+                    reasoning_output_disabled,
+                    ..
+                } if reasoning_output_disabled == expected_output_disabled
+            ));
+        }
     }
 
     #[test]
