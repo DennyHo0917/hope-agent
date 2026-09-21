@@ -145,7 +145,7 @@
 
 - #712/#714/#715 分别已有 #718/#719/#720，不重复实施；#727 文件差异与 #730 Intel 构建分别已有 #728/#731。Issue 保持开放，不自动关闭。
 - #735 最新维护者回复已定位到待复现的当前工具组超限；不能把本轮 DeepSeek 思考开关宣称为该本地 llama.cpp 问题的修复。#734 的本地小模型回复问题同样没有可确认的通用修复证据。
-- 现有本地定向证据：重定向原语 3 项、SearXNG 2 项、MCP core 45 项、ACP 通知 3 项、Discord 4 项、模板 11 项；OAuth 11 项、凭据 3 项、ACP 控制端 12 项、Knowledge Server 6 项、DeepSeek 请求与档位各 1 项。发现两个旧 initialize 默认断言后按旧/新协议合同校正并复验，不以旧预期掩盖协议变化。
+- 现有本地定向证据：重定向原语 3 项、SearXNG 2 项、MCP core 45 项、ACP 通知 3 项、Discord 4 项、模板 11 项；OAuth 首轮 11 项（复审补充刷新令牌重授权负例）、凭据 3 项、ACP 控制端 12 项、Knowledge Server 6 项、DeepSeek 请求与档位各 1 项。发现两个旧 initialize 默认断言后按旧/新协议合同校正并复验，不以旧预期掩盖协议变化。
 - FTR-004 显式运行通过 12 类合成检查；只有 synthetic-only 证据，生产 schema/Goal revision 尚未接入。中英文手册对齐、翻译键完整性和 diff whitespace 检查通过。
 - 正式交付 [PR #737](https://github.com/shiwenwen/hope-agent/pull/737)。首次正常 push 的 pre-push 全门禁通过：Rust 5281 项通过、5 项既有忽略；前端 294 文件/1708 项通过，类型、lint、分层/供应链/内核与更新器守卫通过。一次新增 fixture 读取长度 lint 已修复并重跑。当前提交复审、required CI 和远端合并状态以该 PR 与本轮运行报告为准，不提前声称 MERGED。
 

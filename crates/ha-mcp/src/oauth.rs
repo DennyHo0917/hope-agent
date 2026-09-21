@@ -1058,7 +1058,24 @@ async fn authorize_server_inner(
 
 #[derive(Default)]
 struct RefreshState {
-    failed_access_token: Option<String>,
+    failed_refresh_token: Option<String>,
+}
+
+impl RefreshState {
+    fn begin_refresh(&mut self, server_name: &str, credentials: &McpCredentials) -> McpResult<()> {
+        if self.failed_refresh_token.is_some()
+            && self.failed_refresh_token == credentials.refresh_token
+        {
+            return Err(McpError::Auth {
+                server: server_name.to_string(),
+                message: "OAuth refresh outcome uncertain; re-authorize required".into(),
+            });
+        }
+        // Fence the credential consumed by the refresh grant, not the access
+        // token: reauthorization may issue the same access token with a new grant.
+        self.failed_refresh_token = credentials.refresh_token.clone();
+        Ok(())
+    }
 }
 
 fn refresh_slot(server_id: &str) -> std::sync::Arc<tokio::sync::Mutex<RefreshState>> {
@@ -1110,15 +1127,9 @@ pub async fn refresh_if_stale(
     if !latest.needs_refresh() {
         return Ok(latest);
     }
-    if state.failed_access_token.as_ref() == Some(&latest.access_token) {
-        return Err(McpError::Auth {
-            server: server_name.to_string(),
-            message: "OAuth refresh outcome uncertain; re-authorize required".into(),
-        });
-    }
     // Set before dispatch so cancellation, response loss and failed persistence
     // all fail closed rather than retrying a possibly consumed refresh token.
-    state.failed_access_token = Some(latest.access_token.clone());
+    state.begin_refresh(server_name, &latest)?;
     let refreshed = refresh_access_token(server_name, &latest).await?;
     let credential_id = server_id.to_string();
     let stored_creds = refreshed.clone();
@@ -1130,7 +1141,7 @@ pub async fn refresh_if_stale(
         server: server_name.to_string(),
         message: "refresh publication rejected; reconnect or re-authorize required".into(),
     })?;
-    state.failed_access_token = None;
+    state.failed_refresh_token = None;
     ha_core::app_info!(
         "mcp",
         &format!("{server_name}:oauth"),
@@ -1368,15 +1379,30 @@ mod auth_method_tests {
         assert!(validate_callback_issuer("fixture", None, Some("https://issuer.example")).is_err());
         assert!(validate_callback_issuer("fixture", Some("https://issuer.example"), None).is_ok());
     }
+    #[test]
+    fn failed_refresh_fences_the_consumed_grant_and_allows_reauthorization() {
+        let mut credentials: McpCredentials = serde_json::from_value(serde_json::json!({
+            "clientId":"client", "accessToken":"synthetic-access",
+            "refreshToken":"synthetic-consumed", "tokenEndpoint":"https://example.com/token",
+            "authorizationEndpoint":"https://example.com/authorize"
+        }))
+        .unwrap();
+        let mut state = RefreshState::default();
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
+        credentials.refresh_token = Some("synthetic-reauthorized".into());
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+    }
+
     #[tokio::test]
     async fn uncertain_refresh_fence_survives_all_waiters_dropping() {
         {
             let slot = refresh_slot("synthetic-uncertain-refresh");
-            slot.lock().await.failed_access_token = Some("synthetic-consumed".into());
+            slot.lock().await.failed_refresh_token = Some("synthetic-consumed".into());
         }
         let slot = refresh_slot("synthetic-uncertain-refresh");
         assert_eq!(
-            slot.lock().await.failed_access_token.as_deref(),
+            slot.lock().await.failed_refresh_token.as_deref(),
             Some("synthetic-consumed")
         );
     }
