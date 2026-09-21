@@ -15,6 +15,7 @@ use tokio::sync::{mpsc, Mutex};
 use super::health;
 use super::types::*;
 use crate::acp_control::config::AcpBackendProtocol;
+use ha_config_schema::acp_control::AcpDistributionAuth;
 
 /// Stdio-based ACP runtime — spawns an external ACP agent as a child process
 /// and communicates over stdin/stdout using NDJSON (JSON-RPC 2.0).
@@ -25,6 +26,7 @@ pub struct StdioAcpRuntime {
     acp_args: Vec<String>,
     protocol: AcpBackendProtocol,
     env_overrides: HashMap<String, String>,
+    auth_method: AcpDistributionAuth,
     /// Active child processes keyed by local session_id.
     children: Arc<Mutex<HashMap<String, ChildHandle>>>,
 }
@@ -52,12 +54,22 @@ impl StdioAcpRuntime {
             acp_args,
             protocol,
             env_overrides,
+            auth_method: AcpDistributionAuth::None,
             children: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
+    pub fn with_auth_method(mut self, auth_method: AcpDistributionAuth) -> Self {
+        self.auth_method = auth_method;
+        self
+    }
+
     fn configure_environment(&self, cmd: &mut Command) {
-        super::configure_child_environment(cmd);
+        // InheritedEnvironment is an existing owner-selected authentication
+        // contract, not a list of variable names. Do not silently break it.
+        if !matches!(self.auth_method, AcpDistributionAuth::InheritedEnvironment) {
+            super::configure_child_environment(cmd);
+        }
         cmd.envs(&self.env_overrides);
     }
 
@@ -841,7 +853,10 @@ impl AcpRuntime for StdioAcpRuntime {
     }
 
     async fn health_check(&self) -> AcpHealthStatus {
-        health::probe_binary(&self.binary_path).await
+        health::probe_binary_with_environment(&self.binary_path, |cmd| {
+            self.configure_environment(cmd);
+        })
+        .await
     }
 }
 
@@ -1015,6 +1030,46 @@ mod tests {
         )
         .is_none());
     }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn declared_auth_environment_and_explicit_overrides_are_honored() {
+        for auth_method in [
+            AcpDistributionAuth::InheritedEnvironment,
+            AcpDistributionAuth::Terminal,
+            AcpDistributionAuth::None,
+        ] {
+            let mut runtime = runtime(AcpBackendProtocol::V1).with_auth_method(auth_method);
+            runtime
+                .env_overrides
+                .insert("OPENAI_API_KEY".into(), "synthetic-override".into());
+            // Model the parent's inherited map without touching process-global
+            // environment or capturing any real host credentials.
+            let mut cmd = Command::new("/usr/bin/env");
+            cmd.env_clear()
+                .env("ANTHROPIC_API_KEY", "synthetic-inherited")
+                .env("OPENAI_API_KEY", "synthetic-old")
+                .env("GEMINI_API_KEY", "synthetic-gemini")
+                .env("UNRELATED_FIXTURE", "synthetic");
+            runtime.configure_environment(&mut cmd);
+            let output = cmd.output().await.unwrap();
+            assert!(output.status.success());
+            let environment = String::from_utf8(output.stdout).unwrap();
+            assert!(environment
+                .lines()
+                .any(|line| line == "OPENAI_API_KEY=synthetic-override"));
+            for inherited in [
+                "ANTHROPIC_API_KEY=synthetic-inherited",
+                "GEMINI_API_KEY=synthetic-gemini",
+                "UNRELATED_FIXTURE=synthetic",
+            ] {
+                assert_eq!(
+                    environment.lines().any(|line| line == inherited),
+                    matches!(auth_method, AcpDistributionAuth::InheritedEnvironment)
+                );
+            }
+        }
+    }
+
     #[cfg(unix)]
     #[tokio::test]
     async fn child_environment_contains_only_operational_and_explicit_values() {

@@ -642,7 +642,7 @@ stdio runtime 只有在 `initialize` 协议版本一致且 `session/new` / `sess
 
 ### 控制端子进程与反向请求边界
 
-会话启动、版本获取与健康探测共用最小环境：HOME/USER/USERPROFILE/PATH、语言、时区、临时目录及 Windows 运行所需变量；不继承其它密钥、代理或注入变量。会话额外环境只来自 owner 显式配置。该边界不等于 PATH 分发文件已经过来源/摘要验证。
+会话启动、版本获取与健康探测共用分发描述符的认证模式。`InheritedEnvironment` 按既有合同保留宿主环境继承，已知后端自动发现也采用该模式；`Terminal` / `None` 只保留 HOME/USER/USERPROFILE/PATH、语言、时区、临时目录及 Windows 运行所需变量。owner 显式 `env` 最后覆盖。描述符尚未包含认证变量名单，不能把整体继承模式宣称为精确凭据白名单；该切片仍待后端合同与验收矩阵，也不等于 PATH 分发文件已经过来源/摘要验证。
 
 握手及 prompt reader 先识别反向 request，再匹配出站响应 ID，避免同 ID 的权限请求被当成结果。当前未实现审批转发，`session/request_permission` 返回 `cancelled`，其它不支持的反向方法返回 `-32601`；不根据名称、默认选择或无人值守状态授予权限。唯一 reader/id router、完整 elicitation 状态机与真实 adapter 验收仍是独立待完成范围。
 

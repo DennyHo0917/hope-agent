@@ -39,7 +39,7 @@ pub fn get_acp_manager() -> Option<&'static AcpArc<AcpSessionManager>> {
     ACP_MANAGER.get()
 }
 
-/// The same minimal environment applies to sessions and discovery probes.
+/// Minimal environment for distributions that do not declare inherited auth.
 pub(super) fn configure_child_environment(cmd: &mut tokio::process::Command) {
     cmd.env_clear();
     for key in [
