@@ -338,7 +338,7 @@ impl<'a> LlmApiAdapter for OpenAIChatAdapter<'a> {
         }
         let fwd = unwrap_text_delta(on_delta);
         let (text, _tool_calls, mut usage, _thinking, _ttft) =
-            parse_chat_completions_sse(resp, request_start, None, cancel, &fwd).await?;
+            parse_chat_completions_sse(resp, request_start, false, cancel, &fwd).await?;
         usage.last_input_tokens = usage.input_tokens;
         usage.last_cache_read_input_tokens = usage.cache_read_input_tokens;
         Ok(OneShotResult { text, usage })

@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "Kayıtlı bir yedekten ayarları geri yükle",
     "toolRestoreSettingsBackupName": "Ayar Yedeğini Geri Yükle",
     "toolResultDiskThreshold": "Araç sonucu disk kalıcılığı",
-    "toolResultDiskThresholdDesc": "Bu boyutu aşan sonuçlar diske kaydedilir, bağlamda yalnızca bir önizleme tutulur. Devre dışı bırakmak için 0",
+    "toolResultDiskThresholdDesc": "Geçici olarak kullanılamıyor: metin sonuçları yalnızca sınırlı bir önizleme tutar; bu eşik uyumluluk için korunur",
     "toolSaveMemoryDesc": "Bilgiyi uzun süreli hafızaya kaydet",
     "toolSaveMemoryName": "Hafızaya kaydet",
     "toolSendAttachmentDesc": "Üretilen dosyayı indirilebilir bir kart olarak masaüstü arayüzüne ilet",

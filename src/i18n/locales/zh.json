@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "从已保存的备份还原设置",
     "toolRestoreSettingsBackupName": "恢复设置备份",
     "toolResultDiskThreshold": "工具结果磁盘持久化",
-    "toolResultDiskThresholdDesc": "工具返回结果超过此阈值时自动写入磁盘，上下文中仅保留预览摘要。设为 0 表示禁用",
+    "toolResultDiskThresholdDesc": "暂不可用：普通文本结果当前仅保留有界上下文预览；此阈值只为兼容旧配置而保留",
     "toolSaveMemoryDesc": "将信息保存到长期记忆中",
     "toolSaveMemoryName": "保存记忆",
     "toolSendAttachmentDesc": "把生成的文件以可下载卡片推送到桌面 UI",

@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "استعادة الإعدادات من نسخة احتياطية محفوظة",
     "toolRestoreSettingsBackupName": "استعادة نسخة احتياطية للإعدادات",
     "toolResultDiskThreshold": "الاحتفاظ بنتائج الأدوات على القرص",
-    "toolResultDiskThresholdDesc": "يتم حفظ النتائج التي تتجاوز هذا الحجم على القرص، مع الاحتفاظ بمعاينة فقط في السياق. اضبط على 0 لتعطيله",
+    "toolResultDiskThresholdDesc": "غير متاح مؤقتًا: تحتفظ النتائج النصية حاليًا بمعاينة محدودة فقط؛ يبقى هذا الحد للتوافق مع الإعدادات القديمة",
     "toolSaveMemoryDesc": "حفظ المعلومات في الذاكرة طويلة الأمد",
     "toolSaveMemoryName": "حفظ ذاكرة",
     "toolSendAttachmentDesc": "دفع ملف مُولَّد كبطاقة قابلة للتنزيل إلى واجهة سطح المكتب",

@@ -505,11 +505,17 @@ flowchart LR
 
 - 支持 `<think>` / `<thinking>` / `<thought>`（大小写不敏感）
 - 正确处理跨 chunk 边界被切断的部分标签
-- 当 `reasoning_effort == "none"` 时直接丢弃 thinking 内容
+- 当用户明确选择 `reasoning_effort == "none"`、模型声明 `reasoning=false`，
+  或官方 DeepSeek 直连契约将有效档位/参数风格解析为关闭时，在接收边界同时丢弃
+  标签内 thinking 与 OpenAI 兼容流的原生 `reasoning_content`；二者都不发
+  界面事件，也不进入 `conversation_history`。`ThinkingStyle::None` 本身只表示
+  不发送推理参数；若普通兼容端的模型仍声明支持 reasoning，返回的推理内容继续保留
+- ACP、Cron 和父会话注入等固定档位入口将显式 `none` 保留到 `TurnRequest`；
+  不得先归一化成空值，否则接收端无法区分“关闭”和“未设置”
 
 ### 5.3 多轮 Thinking 回传
 
-每个 Provider 都把 thinking 内容保存进 `conversation_history`，好让下一轮模型看得到自己上一轮的推理。三家的存储形态各不相同：
+启用思考时，各 Provider 把 thinking 内容保存进 `conversation_history`，好让下一轮模型看得到自己上一轮的推理。关闭思考时 OpenAI Chat 在接收边界丢弃服务端仍返回的 thinking。三家的存储形态各不相同：
 
 ```mermaid
 graph TB

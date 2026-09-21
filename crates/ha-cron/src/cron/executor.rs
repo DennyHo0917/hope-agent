@@ -3095,7 +3095,7 @@ pub async fn build_and_run_agent_with_context(
     let reasoning_effort = agent_def
         .as_ref()
         .and_then(|def| def.config.model.reasoning_effort.clone())
-        .or(ha_core::agent::live_reasoning_effort(None).await);
+        .or(ha_core::agent::live_reasoning_turn_effort(None).await);
     let run_context = Some(ha_core::prompt_context::RunInstructionContext::new(
         ha_core::prompt_context::RunInstructionSource::Cron,
         run_instruction_context

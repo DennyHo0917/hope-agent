@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "Restaurar configurações de um backup salvo",
     "toolRestoreSettingsBackupName": "Restaurar Backup de Configurações",
     "toolResultDiskThreshold": "Persistência em disco de resultados",
-    "toolResultDiskThresholdDesc": "Resultados que excedem este tamanho são salvos em disco, mantendo apenas uma pré-visualização no contexto. 0 para desativar",
+    "toolResultDiskThresholdDesc": "Temporariamente indisponível: resultados de texto mantêm apenas uma prévia limitada; este limite permanece por compatibilidade",
     "toolSaveMemoryDesc": "Salvar informação na memória de longo prazo",
     "toolSaveMemoryName": "Salvar memória",
     "toolSendAttachmentDesc": "Enviar um arquivo gerado como cartão para download na interface de desktop",

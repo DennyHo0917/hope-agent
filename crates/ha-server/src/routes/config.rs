@@ -787,17 +787,30 @@ pub async fn get_tool_result_disk_threshold() -> Result<Json<Value>, AppError> {
         .unwrap_or(50_000))))
 }
 
-/// `POST /api/config/tool-result-threshold` -- set disk persistence threshold (bytes).
+/// `POST /api/config/tool-result-threshold` -- retained for wire compatibility;
+/// disk persistence is unavailable, so writes fail closed.
 pub async fn set_tool_result_disk_threshold(
-    Json(body): Json<Value>,
+    Json(_body): Json<Value>,
 ) -> Result<Json<Value>, AppError> {
-    let bytes = body.get("bytes").and_then(|v| v.as_u64()).unwrap_or(50_000) as usize;
-    ha_core::config::mutate_config_async(("tool_result_disk_threshold", "http"), move |store| {
-        store.tool_result_disk_threshold = Some(bytes);
-        Ok(())
-    })
-    .await?;
-    Ok(Json(json!({ "saved": true })))
+    Err(AppError::forbidden(
+        "tool result disk persistence is unavailable; this setting is read-only",
+    ))
+}
+
+#[cfg(test)]
+mod tool_result_threshold_tests {
+    use super::*;
+    use axum::http::StatusCode;
+
+    #[tokio::test]
+    async fn disk_threshold_write_is_rejected() {
+        let error = set_tool_result_disk_threshold(Json(json!({ "bytes": 75_000 })))
+            .await
+            .expect_err("unavailable disk persistence must stay read-only");
+
+        assert_eq!(error.status, StatusCode::FORBIDDEN);
+        assert!(error.message.contains("read-only"));
+    }
 }
 
 /// `GET /api/config/tool-limits` -- get tool image/pdf limits.

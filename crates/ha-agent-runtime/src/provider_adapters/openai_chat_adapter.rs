@@ -76,7 +76,8 @@ impl OpenAIChatStreamingAdapter<'_> {
     fn prepare_chat_variant(
         &self,
         req: &RoundRequest<'_>,
-        thinking_disabled: bool,
+        thinking_parameters_disabled: bool,
+        reasoning_output_disabled: bool,
         model_supports_vision: bool,
     ) -> Result<PreparedProviderRequest> {
         if crate::agent::config::is_direct_openai_astra(self.base_url, self.model)
@@ -87,7 +88,7 @@ impl OpenAIChatStreamingAdapter<'_> {
                 "GPT-6 Astra tool calling requires the OpenAI Responses API; change this provider's API type in settings.".to_string(),
             ).into());
         }
-        let thinking_style = if thinking_disabled {
+        let thinking_style = if thinking_parameters_disabled {
             &ThinkingStyle::None
         } else {
             self.thinking_style
@@ -112,7 +113,8 @@ impl OpenAIChatStreamingAdapter<'_> {
             req.reasoning_effort,
             req.vision_bridge_available,
             PreparedRequestVariant::OpenAIChat {
-                thinking_disabled,
+                thinking_parameters_disabled,
+                reasoning_output_disabled,
                 model_supports_vision,
                 prompt_cache_key_included,
                 proactive_vision_notice,
@@ -721,7 +723,14 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
             .map(|pc| pc.model_supports_vision(self.model))
             .unwrap_or(true)
             && !self.vision_runtime_disabled();
-        self.prepare_chat_variant(req, false, model_supports_vision)
+        let thinking_parameters_disabled =
+            req.reasoning_disabled || matches!(self.thinking_style, ThinkingStyle::None);
+        self.prepare_chat_variant(
+            req,
+            thinking_parameters_disabled,
+            req.reasoning_disabled,
+            model_supports_vision,
+        )
     }
 
     fn reprepare_round_request(
@@ -731,16 +740,20 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
         reason: ProviderReprepareReason,
     ) -> Result<PreparedProviderRequest> {
         let PreparedRequestVariant::OpenAIChat {
-            thinking_disabled,
+            thinking_parameters_disabled,
+            reasoning_output_disabled,
             model_supports_vision,
             ..
         } = previous.variant
         else {
             anyhow::bail!("OpenAI Chat received an incompatible prepared request")
         };
+        let direct_deepseek_thinking_disabled = reason == ProviderReprepareReason::Thinking
+            && crate::agent::config::is_direct_deepseek(self.base_url, self.model);
         self.prepare_chat_variant(
             req,
-            thinking_disabled || reason == ProviderReprepareReason::Thinking,
+            thinking_parameters_disabled || reason == ProviderReprepareReason::Thinking,
+            reasoning_output_disabled || direct_deepseek_thinking_disabled,
             model_supports_vision && reason != ProviderReprepareReason::Vision,
         )
     }
@@ -754,7 +767,8 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
         observer: &dyn ProviderDispatchObserver,
     ) -> Result<RoundOutcome> {
         let PreparedRequestVariant::OpenAIChat {
-            thinking_disabled,
+            thinking_parameters_disabled,
+            reasoning_output_disabled,
             model_supports_vision,
             prompt_cache_key_included,
             proactive_vision_notice,
@@ -806,7 +820,7 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
                 }
                 .into());
             }
-            if !thinking_disabled {
+            if !thinking_parameters_disabled {
                 let active_style = self.thinking_style;
                 if let Some(autofix) = maybe_auto_disable_thinking(
                     self.provider_config,
@@ -848,7 +862,7 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
         let (text, tool_calls, mut usage, thinking_text, ttft_ms) = parse_chat_completions_sse(
             resp,
             request_start,
-            prepared.reasoning_effort.as_deref(),
+            reasoning_output_disabled,
             cancel,
             on_delta,
         )
@@ -1070,7 +1084,7 @@ fn decode_chat_completion_sse_data(data: &str) -> Result<Value> {
 pub(crate) async fn parse_chat_completions_sse(
     resp: reqwest::Response,
     request_start: std::time::Instant,
-    reasoning_effort: Option<&str>,
+    reasoning_output_disabled: bool,
     cancel: &Arc<AtomicBool>,
     on_delta: &(dyn for<'s> Fn(&'s str) + Send + Sync),
 ) -> Result<(
@@ -1206,7 +1220,7 @@ pub(crate) async fn parse_chat_completions_sse(
                         if let Some(reasoning) =
                             delta.get("reasoning_content").and_then(|c| c.as_str())
                         {
-                            if !reasoning.is_empty() {
+                            if !reasoning.is_empty() && !reasoning_output_disabled {
                                 if first_token_time.is_none() {
                                     first_token_time =
                                         Some(request_start.elapsed().as_millis() as u64);
@@ -1220,7 +1234,7 @@ pub(crate) async fn parse_chat_completions_sse(
                         // thinking via <think> tags. With effort=none, discard entirely.
                         if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
                             let (text_part, think_part) = think_filter.process(content);
-                            if !think_part.is_empty() && reasoning_effort != Some("none") {
+                            if !think_part.is_empty() && !reasoning_output_disabled {
                                 emit_thinking_delta(&on_delta, &think_part);
                                 collected_thinking.push_str(&think_part);
                             }
@@ -1453,7 +1467,9 @@ mod tests {
         take_next_chat_sse_event_block, validate_chat_sse_eof_tail, OpenAIChatStreamingAdapter,
     };
     use crate::agent::api_types::FunctionCallItem;
-    use crate::agent::streaming_adapter::{RoundRequest, StreamingChatAdapter};
+    use crate::agent::streaming_adapter::{
+        PreparedRequestVariant, ProviderReprepareReason, RoundRequest, StreamingChatAdapter,
+    };
     use crate::provider::ThinkingStyle;
     use std::collections::HashMap;
     use std::sync::{atomic::AtomicBool, Arc};
@@ -1657,6 +1673,126 @@ mod tests {
         assert!(decode_chat_completion_sse_data("{").is_err());
     }
 
+    #[tokio::test]
+    async fn disabled_thinking_drops_native_and_tagged_reasoning_from_chat_history() {
+        async fn parse_fixture(thinking_disabled: bool) -> (String, String) {
+            let native = serde_json::json!({
+                "choices": [{
+                    "delta": {"reasoning_content": "native reasoning"},
+                    "finish_reason": null
+                }]
+            });
+            let tagged = serde_json::json!({
+                "choices": [{
+                    "delta": {"content": "<think>tagged reasoning</think>visible answer"},
+                    "finish_reason": "stop"
+                }]
+            });
+            let body = format!("data: {native}\n\ndata: {tagged}\n\ndata: [DONE]\n\n");
+            let response = super::super::test_support::raw_sse_response(body).await;
+            let cancel = Arc::new(AtomicBool::new(false));
+            let (text, _, _, thinking, _) = super::parse_chat_completions_sse(
+                response,
+                std::time::Instant::now(),
+                thinking_disabled,
+                &cancel,
+                &|_| {},
+            )
+            .await
+            .unwrap();
+            (text, thinking)
+        }
+
+        let disabled = parse_fixture(true).await;
+        assert_eq!(disabled.0, "visible answer");
+        assert!(disabled.1.is_empty());
+
+        let enabled = parse_fixture(false).await;
+        assert_eq!(enabled.0, "visible answer");
+        assert_eq!(enabled.1, "native reasoningtagged reasoning");
+    }
+
+    #[test]
+    fn request_preparation_separates_parameterless_style_from_disabled_output() {
+        let history = Vec::new();
+        let mut req = super::super::test_support::round_request(&history);
+        req.reasoning_effort = None;
+        req.reasoning_disabled = true;
+        let thinking_style = ThinkingStyle::Openai;
+        let adapter = OpenAIChatStreamingAdapter {
+            api_key: "synthetic",
+            base_url: "http://127.0.0.1:8080",
+            model: "compatible-model",
+            thinking_style: &thinking_style,
+            provider_config: None,
+            vision_runtime_disabled: Arc::new(AtomicBool::new(false)),
+            vision_notice_emitted: Arc::new(AtomicBool::new(false)),
+            prepared_history_had_images: AtomicBool::new(false),
+        };
+
+        let prepared = adapter.prepare_round_request(&req).unwrap();
+        assert!(matches!(
+            prepared.variant,
+            PreparedRequestVariant::OpenAIChat {
+                thinking_parameters_disabled: true,
+                reasoning_output_disabled: true,
+                ..
+            }
+        ));
+
+        req.reasoning_disabled = false;
+        let thinking_style = ThinkingStyle::None;
+        let adapter = OpenAIChatStreamingAdapter {
+            thinking_style: &thinking_style,
+            ..adapter
+        };
+        let prepared = adapter.prepare_round_request(&req).unwrap();
+        assert!(matches!(
+            prepared.variant,
+            PreparedRequestVariant::OpenAIChat {
+                thinking_parameters_disabled: true,
+                reasoning_output_disabled: false,
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn direct_deepseek_thinking_reprepare_disables_reasoning_output() {
+        let history = Vec::new();
+        let mut req = super::super::test_support::round_request(&history);
+        req.reasoning_effort = Some("medium");
+        let thinking_style = ThinkingStyle::Openai;
+
+        for (base_url, model, expected_output_disabled) in [
+            ("https://api.deepseek.com/v1", "deepseek-flash", true),
+            ("https://relay.example/v1", "deepseek-flash", false),
+        ] {
+            let adapter = OpenAIChatStreamingAdapter {
+                api_key: "synthetic",
+                base_url,
+                model,
+                thinking_style: &thinking_style,
+                provider_config: None,
+                vision_runtime_disabled: Arc::new(AtomicBool::new(false)),
+                vision_notice_emitted: Arc::new(AtomicBool::new(false)),
+                prepared_history_had_images: AtomicBool::new(false),
+            };
+            let prepared = adapter.prepare_round_request(&req).unwrap();
+            let retried = adapter
+                .reprepare_round_request(&req, &prepared, ProviderReprepareReason::Thinking)
+                .unwrap();
+            assert!(matches!(
+                retried.variant,
+                PreparedRequestVariant::OpenAIChat {
+                    thinking_parameters_disabled: true,
+                    reasoning_output_disabled,
+                    ..
+                } if reasoning_output_disabled == expected_output_disabled
+            ));
+        }
+    }
+
     #[test]
     fn chat_sse_framing_preserves_tool_json_split_inside_emoji_scalar() {
         let payload = serde_json::json!({
@@ -1747,6 +1883,7 @@ mod tests {
             history_for_api: &history,
             vision_bridge_available: false,
             reasoning_effort: None,
+            reasoning_disabled: false,
             temperature: None,
             max_tokens: 100,
             is_final_round: false,
@@ -1849,6 +1986,7 @@ mod tests {
             history_for_api: &history,
             vision_bridge_available: false,
             reasoning_effort: None,
+            reasoning_disabled: false,
             temperature: None,
             max_tokens: 100,
             is_final_round: false,

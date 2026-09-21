@@ -27,15 +27,41 @@ use super::streaming_adapter::{
     ExecutedTool, PreparedProviderRequest, ProviderDispatchEvent, ProviderDispatchIdentity,
     ProviderDispatchObserver, ReprepareRequired, RoundOutcome, RoundRequest, StreamingChatAdapter,
 };
-use super::types::{AssistantAgent, ChatUsage, ProviderFormat};
+use super::types::{AssistantAgent, ChatUsage, LlmProvider, ProviderFormat};
 use crate::context_compact::group_admission::{
     plan_group_admission, AdmissionCandidate, AdmissionCandidateKind, CandidateTokenCount,
     CurrentToolGroupEnvelopeOverflowError, GroupAdmissionBudget, GroupAdmissionError,
     RequestCapacityCount, ResultAdmissionPriority, ResultCandidateSet,
 };
 use crate::context_compact::{set_tool_result_unit_text, tool_result_units, ToolResultLocator};
+use crate::provider::ThinkingStyle;
 use crate::tool_defs::ToolExecContext;
 use crate::tools;
+
+fn provider_reasoning_is_hard_disabled(
+    provider: &LlmProvider,
+    effective_effort: Option<&str>,
+    thinking_style: &ThinkingStyle,
+) -> bool {
+    matches!(
+        provider,
+        LlmProvider::OpenAIChat {
+            base_url,
+            model,
+            ..
+        } if crate::agent::config::is_direct_deepseek(base_url, model)
+            && (matches!(effective_effort, Some("none"))
+                || matches!(thinking_style, ThinkingStyle::None))
+    )
+}
+
+fn reasoning_output_is_disabled(
+    explicitly_disabled: bool,
+    model_hard_disabled: bool,
+    provider_hard_disabled: bool,
+) -> bool {
+    explicitly_disabled || model_hard_disabled || provider_hard_disabled
+}
 
 struct DurableProviderDispatchObserver {
     sink: Arc<dyn crate::turn_durability::TurnDurabilitySink>,
@@ -2898,10 +2924,20 @@ impl RuntimeAgentExt for AssistantAgent {
                     None => guidance,
                 });
             }
-            let effort_requested = self.effective_reasoning_effort(reasoning_effort).await;
+            let (effort_requested, reasoning_disabled) =
+                self.effective_reasoning_selection(reasoning_effort).await;
             let effort_effective = super::config::provider_reasoning_effort(
                 self.runtime_provider(),
                 effort_requested.as_deref(),
+            );
+            let reasoning_disabled = reasoning_output_is_disabled(
+                reasoning_disabled,
+                self.runtime_reasoning_hard_disabled(),
+                provider_reasoning_is_hard_disabled(
+                    self.runtime_provider(),
+                    effort_effective.as_deref(),
+                    self.runtime_thinking_style(),
+                ),
             );
             if let Some(logger) = crate::get_logger() {
                 logger.log(
@@ -3108,6 +3144,7 @@ impl RuntimeAgentExt for AssistantAgent {
                 history_for_api: &[],
                 vision_bridge_available: vision_bridge.is_some(),
                 reasoning_effort: effort_effective.as_deref(),
+                reasoning_disabled,
                 temperature: self.runtime_temperature(),
                 max_tokens: eval_max_tokens,
                 is_final_round,
@@ -4650,11 +4687,13 @@ mod tests {
         apply_tool_result_candidates, build_tool_result_candidates, can_bootstrap_mcp_catalog,
         collect_tool_schema_updates, extract_started_job_id, has_checkpointed_subagent_dispatch,
         local_tool_search_survived, locate_latest_tool_result_targets, merge_retry_hook_context,
-        provider_projection_current_group_hard_protected_start, queued_message_for_provider,
-        requires_local_mcp_tool_search, resolve_empty_round_outcome, restore_model_call_order,
-        run_serialized_round_environment_scan, stamp_checkpointed_subagent_dispatch,
-        terminal_assistant_text_for_history, validate_tier3_current_group_installation,
-        C0RecoveryCursor, CapturedToolAdmission, Tier3PublicationState, Tier3RecoverySnapshot,
+        provider_projection_current_group_hard_protected_start,
+        provider_reasoning_is_hard_disabled, queued_message_for_provider,
+        reasoning_output_is_disabled, requires_local_mcp_tool_search, resolve_empty_round_outcome,
+        restore_model_call_order, run_serialized_round_environment_scan,
+        stamp_checkpointed_subagent_dispatch, terminal_assistant_text_for_history,
+        validate_tier3_current_group_installation, C0RecoveryCursor, CapturedToolAdmission,
+        LlmProvider, ThinkingStyle, Tier3PublicationState, Tier3RecoverySnapshot,
         ToolResultProjectionCandidate,
     };
     use crate::agent::streaming_adapter::{ExecutedTool, ToolDispatchSideOutput};
@@ -4684,6 +4723,49 @@ mod tests {
 
         app.mcp_global.denied_servers.push("azure".into());
         assert!(!requires_local_mcp_tool_search(&app, true, true));
+    }
+
+    #[test]
+    fn explicit_model_or_provider_hard_off_disables_reasoning_output() {
+        assert!(reasoning_output_is_disabled(true, false, false));
+        assert!(reasoning_output_is_disabled(false, true, false));
+        assert!(reasoning_output_is_disabled(false, false, true));
+        assert!(!reasoning_output_is_disabled(false, false, false));
+    }
+
+    #[test]
+    fn only_direct_deepseek_effective_or_style_none_is_a_provider_hard_off() {
+        let direct = LlmProvider::OpenAIChat {
+            api_key: String::new(),
+            base_url: "https://api.deepseek.com".to_string(),
+            model: "deepseek-v4-flash".to_string(),
+        };
+        let relay = LlmProvider::OpenAIChat {
+            api_key: String::new(),
+            base_url: "https://relay.example.com".to_string(),
+            model: "deepseek-v4-flash".to_string(),
+        };
+
+        assert!(provider_reasoning_is_hard_disabled(
+            &direct,
+            Some("none"),
+            &ThinkingStyle::Openai
+        ));
+        assert!(provider_reasoning_is_hard_disabled(
+            &direct,
+            Some("medium"),
+            &ThinkingStyle::None
+        ));
+        assert!(!provider_reasoning_is_hard_disabled(
+            &direct,
+            Some("medium"),
+            &ThinkingStyle::Openai
+        ));
+        assert!(!provider_reasoning_is_hard_disabled(
+            &relay,
+            Some("none"),
+            &ThinkingStyle::None
+        ));
     }
 
     #[test]

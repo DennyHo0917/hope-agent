@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "Restore settings from a saved backup",
     "toolRestoreSettingsBackupName": "Restore Settings Backup",
     "toolResultDiskThreshold": "Tool result disk persistence",
-    "toolResultDiskThresholdDesc": "Results exceeding this size are saved to disk, with only a preview kept in context. Set to 0 to disable",
+    "toolResultDiskThresholdDesc": "Temporarily unavailable: text results currently keep only a bounded context preview; this threshold remains for legacy compatibility",
     "toolSaveMemoryDesc": "Save information to long-term memory",
     "toolSaveMemoryName": "Save Memory",
     "toolSendAttachmentDesc": "Push a generated file as a downloadable card to the desktop UI",

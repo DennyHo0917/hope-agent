@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "保存済みのバックアップから設定を復元",
     "toolRestoreSettingsBackupName": "設定バックアップ復元",
     "toolResultDiskThreshold": "ツール結果のディスク永続化",
-    "toolResultDiskThresholdDesc": "このサイズを超える結果はディスクに保存し、コンテキストにはプレビューのみ残します。0 で無効",
+    "toolResultDiskThresholdDesc": "一時的に利用できません：テキスト結果は現在、制限付きプレビューのみ保持し、このしきい値は互換性のために残されています",
     "toolSaveMemoryDesc": "情報を長期記憶に保存",
     "toolSaveMemoryName": "記憶を保存",
     "toolSendAttachmentDesc": "生成したファイルをダウンロード可能なカードとしてデスクトップ UI に送信",

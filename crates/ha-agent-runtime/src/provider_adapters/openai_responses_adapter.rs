@@ -1738,6 +1738,7 @@ mod tests {
             history_for_api: &history,
             vision_bridge_available: false,
             reasoning_effort: None,
+            reasoning_disabled: false,
             temperature: None,
             max_tokens: 100,
             is_final_round: false,
