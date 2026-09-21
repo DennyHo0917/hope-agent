@@ -184,6 +184,16 @@ pub async fn live_reasoning_effort(fallback: Option<&str>) -> Option<String> {
     live_reasoning_selection(fallback).await.0
 }
 
+/// Read the live effort for a fixed-effort [`crate::turn_kernel::TurnRequest`].
+///
+/// Unlike [`live_reasoning_effort`], this preserves an explicit `none` as the
+/// request sentinel. The runtime normalizes that sentinel while retaining its
+/// disabled bit, so non-main transports cannot confuse “off” with “unset”.
+pub async fn live_reasoning_turn_effort(fallback: Option<&str>) -> Option<String> {
+    let selection = live_reasoning_selection(fallback).await;
+    reasoning_selection_for_turn(selection)
+}
+
 /// Read the live effort while preserving whether the user explicitly selected
 /// `none`. The effort remains normalized for provider request construction,
 /// while the boolean lets response adapters discard unsolicited reasoning.
@@ -202,6 +212,16 @@ fn normalize_live_reasoning_selection(effort: String) -> (Option<String>, bool) 
         (None, true)
     } else {
         (Some(effort), false)
+    }
+}
+
+fn reasoning_selection_for_turn(
+    (effort, explicitly_disabled): (Option<String>, bool),
+) -> Option<String> {
+    if explicitly_disabled {
+        Some("none".to_string())
+    } else {
+        effort
     }
 }
 
@@ -1301,6 +1321,19 @@ mod provider_effort_tests {
             normalize_live_reasoning_selection("medium".to_string()),
             (Some("medium".to_string()), false)
         );
+    }
+
+    #[test]
+    fn fixed_turn_effort_preserves_the_disabled_sentinel() {
+        assert_eq!(
+            reasoning_selection_for_turn((None, true)).as_deref(),
+            Some("none")
+        );
+        assert_eq!(
+            reasoning_selection_for_turn((Some("medium".to_string()), false)).as_deref(),
+            Some("medium")
+        );
+        assert_eq!(reasoning_selection_for_turn((None, false)), None);
     }
 
     #[test]

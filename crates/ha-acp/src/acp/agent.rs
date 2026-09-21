@@ -1398,7 +1398,7 @@ impl AcpAgent {
         let resolved_temperature = agent_model_config.temperature.or(store.temperature);
         let reasoning_effort = agent_model_config.reasoning_effort.or(self
             .runtime
-            .block_on(ha_core::agent::live_reasoning_effort(None)));
+            .block_on(ha_core::agent::live_reasoning_turn_effort(None)));
 
         let params = ha_core::turn_kernel::TurnRequest::new(
             session_id.to_string(),

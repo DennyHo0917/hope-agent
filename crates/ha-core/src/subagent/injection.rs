@@ -2145,7 +2145,7 @@ pub(crate) async fn inject_and_run_parent_with_ui_guard(
         let resolved_reasoning_effort = parent_agent_def
             .as_ref()
             .and_then(|def| def.config.model.reasoning_effort.clone())
-            .or(crate::agent::live_reasoning_effort(None).await);
+            .or(crate::agent::live_reasoning_turn_effort(None).await);
         let engine_params = crate::turn_kernel::TurnRequest::new(
             parent_session_id.clone(),
             parent_agent_id.clone(),

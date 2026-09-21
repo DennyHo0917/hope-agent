@@ -510,6 +510,8 @@ flowchart LR
   标签内 thinking 与 OpenAI 兼容流的原生 `reasoning_content`；二者都不发
   界面事件，也不进入 `conversation_history`。`ThinkingStyle::None` 本身只表示
   不发送推理参数；若普通兼容端的模型仍声明支持 reasoning，返回的推理内容继续保留
+- ACP、Cron 和父会话注入等固定档位入口将显式 `none` 保留到 `TurnRequest`；
+  不得先归一化成空值，否则接收端无法区分“关闭”和“未设置”
 
 ### 5.3 多轮 Thinking 回传
 
