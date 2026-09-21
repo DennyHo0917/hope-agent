@@ -941,10 +941,7 @@ pub(crate) async fn tool_update_settings(args: &Value, ctx: &ToolExecContext) ->
     }
 
     if BLOCKED_UPDATE_CATEGORIES.contains(&category) {
-        bail!(
-            "Category '{category}' cannot be modified through this tool for safety reasons. \
-             Please guide the user to change it in the Settings UI.",
-        );
+        bail!(blocked_update_message(category));
     }
 
     if category == "all" {
@@ -980,6 +977,19 @@ pub(crate) async fn tool_update_settings(args: &Value, ctx: &ToolExecContext) ->
     }
 
     update_app_config(category, values, ctx).await
+}
+
+fn blocked_update_message(category: &str) -> String {
+    if category == "tool_result_disk_threshold" {
+        return "Category 'tool_result_disk_threshold' is read-only because tool result disk \
+                persistence is currently unavailable."
+            .to_string();
+    }
+
+    format!(
+        "Category '{category}' cannot be modified through this tool for safety reasons. \
+         Please guide the user to change it in the Settings UI."
+    )
 }
 
 async fn update_external_memory_providers(values: &Value) -> Result<String> {
@@ -1894,6 +1904,16 @@ mod tests {
                 "{cat} must be in BLOCKED_UPDATE_CATEGORIES"
             );
         }
+    }
+
+    #[test]
+    fn unavailable_disk_threshold_error_does_not_offer_a_disabled_ui_control() {
+        let message = blocked_update_message("tool_result_disk_threshold");
+        assert!(message.contains("read-only"));
+        assert!(message.contains("currently unavailable"));
+        assert!(!message.contains("Settings UI"));
+
+        assert!(blocked_update_message("channels").contains("Settings UI"));
     }
 
     #[test]
