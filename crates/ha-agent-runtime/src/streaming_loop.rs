@@ -27,7 +27,7 @@ use super::streaming_adapter::{
     ExecutedTool, PreparedProviderRequest, ProviderDispatchEvent, ProviderDispatchIdentity,
     ProviderDispatchObserver, ReprepareRequired, RoundOutcome, RoundRequest, StreamingChatAdapter,
 };
-use super::types::{AssistantAgent, ChatUsage, ProviderFormat};
+use super::types::{AssistantAgent, ChatUsage, LlmProvider, ProviderFormat};
 use crate::context_compact::group_admission::{
     plan_group_admission, AdmissionCandidate, AdmissionCandidateKind, CandidateTokenCount,
     CurrentToolGroupEnvelopeOverflowError, GroupAdmissionBudget, GroupAdmissionError,
@@ -37,8 +37,27 @@ use crate::context_compact::{set_tool_result_unit_text, tool_result_units, ToolR
 use crate::tool_defs::ToolExecContext;
 use crate::tools;
 
-fn reasoning_output_is_disabled(explicitly_disabled: bool, model_hard_disabled: bool) -> bool {
-    explicitly_disabled || model_hard_disabled
+fn provider_reasoning_is_hard_disabled(
+    provider: &LlmProvider,
+    effective_effort: Option<&str>,
+) -> bool {
+    matches!(
+        provider,
+        LlmProvider::OpenAIChat {
+            base_url,
+            model,
+            ..
+        } if crate::agent::config::is_direct_deepseek(base_url, model)
+            && matches!(effective_effort, Some("none"))
+    )
+}
+
+fn reasoning_output_is_disabled(
+    explicitly_disabled: bool,
+    model_hard_disabled: bool,
+    provider_hard_disabled: bool,
+) -> bool {
+    explicitly_disabled || model_hard_disabled || provider_hard_disabled
 }
 
 struct DurableProviderDispatchObserver {
@@ -2911,6 +2930,10 @@ impl RuntimeAgentExt for AssistantAgent {
             let reasoning_disabled = reasoning_output_is_disabled(
                 reasoning_disabled,
                 self.runtime_reasoning_hard_disabled(),
+                provider_reasoning_is_hard_disabled(
+                    self.runtime_provider(),
+                    effort_effective.as_deref(),
+                ),
             );
             if let Some(logger) = crate::get_logger() {
                 logger.log(
@@ -4660,12 +4683,13 @@ mod tests {
         apply_tool_result_candidates, build_tool_result_candidates, can_bootstrap_mcp_catalog,
         collect_tool_schema_updates, extract_started_job_id, has_checkpointed_subagent_dispatch,
         local_tool_search_survived, locate_latest_tool_result_targets, merge_retry_hook_context,
-        provider_projection_current_group_hard_protected_start, queued_message_for_provider,
+        provider_projection_current_group_hard_protected_start,
+        provider_reasoning_is_hard_disabled, queued_message_for_provider,
         reasoning_output_is_disabled, requires_local_mcp_tool_search, resolve_empty_round_outcome,
         restore_model_call_order, run_serialized_round_environment_scan,
         stamp_checkpointed_subagent_dispatch, terminal_assistant_text_for_history,
         validate_tier3_current_group_installation, C0RecoveryCursor, CapturedToolAdmission,
-        Tier3PublicationState, Tier3RecoverySnapshot, ToolResultProjectionCandidate,
+        LlmProvider, Tier3PublicationState, Tier3RecoverySnapshot, ToolResultProjectionCandidate,
     };
     use crate::agent::streaming_adapter::{ExecutedTool, ToolDispatchSideOutput};
     use crate::async_jobs::{synthetic_started_result, JobOrigin};
@@ -4697,10 +4721,32 @@ mod tests {
     }
 
     #[test]
-    fn only_explicit_or_model_capability_disables_reasoning_output() {
-        assert!(reasoning_output_is_disabled(true, false));
-        assert!(reasoning_output_is_disabled(false, true));
-        assert!(!reasoning_output_is_disabled(false, false));
+    fn explicit_model_or_provider_hard_off_disables_reasoning_output() {
+        assert!(reasoning_output_is_disabled(true, false, false));
+        assert!(reasoning_output_is_disabled(false, true, false));
+        assert!(reasoning_output_is_disabled(false, false, true));
+        assert!(!reasoning_output_is_disabled(false, false, false));
+    }
+
+    #[test]
+    fn only_direct_deepseek_effective_none_is_a_provider_hard_off() {
+        let direct = LlmProvider::OpenAIChat {
+            api_key: String::new(),
+            base_url: "https://api.deepseek.com".to_string(),
+            model: "deepseek-v4-flash".to_string(),
+        };
+        let relay = LlmProvider::OpenAIChat {
+            api_key: String::new(),
+            base_url: "https://relay.example.com".to_string(),
+            model: "deepseek-v4-flash".to_string(),
+        };
+
+        assert!(provider_reasoning_is_hard_disabled(&direct, Some("none")));
+        assert!(!provider_reasoning_is_hard_disabled(
+            &direct,
+            Some("medium")
+        ));
+        assert!(!provider_reasoning_is_hard_disabled(&relay, Some("none")));
     }
 
     #[test]
