@@ -935,15 +935,10 @@ pub async fn get_tool_result_disk_threshold() -> Result<usize, CmdError> {
 
 #[tauri::command]
 pub async fn set_tool_result_disk_threshold(bytes: usize) -> Result<(), CmdError> {
-    ha_core::config::mutate_config_async(
-        ("tool_result_disk_threshold", "settings-ui"),
-        move |store| {
-            store.tool_result_disk_threshold = if bytes == 0 { Some(0) } else { Some(bytes) };
-            Ok(())
-        },
-    )
-    .await
-    .map_err(Into::into)
+    let _ = bytes;
+    Err(CmdError::msg(
+        "tool result disk persistence is unavailable; this setting is read-only",
+    ))
 }
 
 // ── Tool Limits ────────────────────────────────────────────────
