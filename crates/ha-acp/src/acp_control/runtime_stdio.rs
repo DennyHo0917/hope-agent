@@ -56,6 +56,44 @@ impl StdioAcpRuntime {
         }
     }
 
+    fn configure_environment(&self, cmd: &mut Command) {
+        super::configure_child_environment(cmd);
+        cmd.envs(&self.env_overrides);
+    }
+
+    /// Reverse requests must never masquerade as a response with the same id.
+    /// Permission forwarding has no owner approval bridge yet: fail closed.
+    fn reverse_request_response(msg: &serde_json::Value) -> Option<serde_json::Value> {
+        let method = msg.get("method")?.as_str()?;
+        let id = msg.get("id")?;
+        let result = if method == "session/request_permission" {
+            serde_json::json!({"result": {"outcome": {"outcome": "cancelled"}}})
+        } else {
+            serde_json::json!({"error": {
+                "code": -32601, "message": "Client method not supported"
+            }})
+        };
+        let mut response = result;
+        response["jsonrpc"] = serde_json::json!("2.0");
+        response["id"] = id.clone();
+        Some(response)
+    }
+
+    async fn handle_reverse_request(
+        stdin: &Mutex<ChildStdin>,
+        msg: &serde_json::Value,
+    ) -> anyhow::Result<bool> {
+        let Some(response) = Self::reverse_request_response(msg) else {
+            return Ok(false);
+        };
+        let mut stdin = stdin.lock().await;
+        let mut line = serde_json::to_vec(&response)?;
+        line.push(b'\n');
+        stdin.write_all(&line).await?;
+        stdin.flush().await?;
+        Ok(true)
+    }
+
     /// Spawn the child process in ACP mode.
     fn spawn_child(&self, cwd: Option<&str>) -> anyhow::Result<Child> {
         let mut cmd = Command::new(&self.binary_path);
@@ -68,8 +106,7 @@ impl StdioAcpRuntime {
             cmd.current_dir(dir);
         }
 
-        // Environment: inherit + filter sensitive vars + apply overrides
-        cmd.envs(&self.env_overrides);
+        self.configure_environment(&mut cmd);
 
         // Stdio: pipe all three
         cmd.stdin(Stdio::piped())
@@ -155,7 +192,10 @@ impl StdioAcpRuntime {
             }
 
             if let Ok(msg) = serde_json::from_str::<serde_json::Value>(trimmed) {
-                // Check if this is a response (has "id" field matching ours)
+                if Self::handle_reverse_request(&child.stdin, &msg).await? {
+                    continue;
+                }
+                // Only responses may match an outstanding request id.
                 if let Some(resp_id) = msg.get("id").and_then(|v| v.as_u64()) {
                     if resp_id == id {
                         if let Some(error) = msg.get("error") {
@@ -345,6 +385,7 @@ impl AcpRuntime for StdioAcpRuntime {
     async fn get_version(&self) -> anyhow::Result<String> {
         let mut cmd = tokio::process::Command::new(&self.binary_path);
         cmd.arg("--version");
+        self.configure_environment(&mut cmd);
         ha_core::platform::hide_console_tokio(&mut cmd);
         let output = cmd.output().await?;
         let text = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -573,6 +614,10 @@ impl AcpRuntime for StdioAcpRuntime {
                 Err(_) => continue,
             };
 
+            if Self::handle_reverse_request(&stdin, &msg).await? {
+                continue;
+            }
+
             // Check if this is the prompt response (id: 100)
             if msg.get("id").and_then(|v| v.as_u64()) == Some(100) {
                 if let Some(result) = msg.get("result") {
@@ -646,8 +691,9 @@ impl AcpRuntime for StdioAcpRuntime {
                                     .unwrap_or("")
                                     .to_string();
                                 let name = update
-                                    .get("title")
+                                    .get("name")
                                     .and_then(|v| v.as_str())
+                                    .or_else(|| update.get("title").and_then(|v| v.as_str()))
                                     .unwrap_or("unknown")
                                     .to_string();
                                 let status = update
@@ -951,5 +997,67 @@ mod tests {
         StdioAcpRuntime::terminate_unregistered_child(&mut child, "test").await;
 
         assert!(child.try_wait().expect("inspect child status").is_some());
+    }
+    #[test]
+    fn reverse_requests_cannot_resolve_a_matching_outbound_id() {
+        let permission = serde_json::json!({
+            "jsonrpc": "2.0", "id": 100, "method": "session/request_permission",
+            "params": {"toolCall": {"name": "trusted_tool"}}
+        });
+        let response = StdioAcpRuntime::reverse_request_response(&permission).unwrap();
+        assert_eq!(response["id"], 100);
+        assert_eq!(response["result"]["outcome"]["outcome"], "cancelled");
+        let unknown = serde_json::json!({"id": "reverse-1", "method": "fs/read_text_file"});
+        let response = StdioAcpRuntime::reverse_request_response(&unknown).unwrap();
+        assert_eq!(response["error"]["code"], -32601);
+        assert!(StdioAcpRuntime::reverse_request_response(
+            &serde_json::json!({"id": 100, "result": {}})
+        )
+        .is_none());
+    }
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn child_environment_contains_only_operational_and_explicit_values() {
+        let mut runtime = runtime(AcpBackendProtocol::V1);
+        runtime.binary_path = "/usr/bin/env".into();
+        runtime.acp_args.clear();
+        runtime
+            .env_overrides
+            .insert("EXPLICIT_TEST_CREDENTIAL".into(), "synthetic".into());
+        let output = runtime
+            .spawn_child(None)
+            .unwrap()
+            .wait_with_output()
+            .await
+            .unwrap();
+        assert!(output.status.success());
+        let environment = String::from_utf8(output.stdout).unwrap();
+        assert!(environment
+            .lines()
+            .any(|line| line == "EXPLICIT_TEST_CREDENTIAL=synthetic"));
+        for line in environment.lines() {
+            let (name, _) = line.split_once('=').unwrap();
+            assert!(
+                [
+                    "HOME",
+                    "USER",
+                    "USERPROFILE",
+                    "PATH",
+                    "LANG",
+                    "LC_ALL",
+                    "TZ",
+                    "TMPDIR",
+                    "TEMP",
+                    "TMP",
+                    "SYSTEMROOT",
+                    "WINDIR",
+                    "COMSPEC",
+                    "PATHEXT",
+                    "EXPLICIT_TEST_CREDENTIAL",
+                ]
+                .contains(&name),
+                "unexpected inherited environment variable"
+            );
+        }
     }
 }

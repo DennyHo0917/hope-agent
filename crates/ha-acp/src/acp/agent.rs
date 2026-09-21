@@ -1527,6 +1527,7 @@ impl AcpAgent {
                         serde_json::json!({
                             "sessionUpdate": "tool_call",
                             "toolCallId": call_id,
+                            "name": msg.tool_name,
                             "title": tool_name,
                             "status": status,
                         }),

@@ -211,6 +211,20 @@ pub fn is_direct_openai_astra(base_url: &str, model: &str) -> bool {
         })
 }
 
+/// The direct DeepSeek contract must not leak to similarly named relays.
+pub fn is_direct_deepseek(base_url: &str, model: &str) -> bool {
+    matches!(
+        model,
+        "deepseek-flash" | "deepseek-v4-flash" | "deepseek-v4-flash-vision-exp" | "deepseek-v4-pro"
+    ) && url::Url::parse(base_url).is_ok_and(|url| {
+        url.scheme() == "https"
+            && url.host_str() == Some("api.deepseek.com")
+            && url.port_or_known_default() == Some(443)
+            && url.username().is_empty()
+            && url.password().is_none()
+    })
+}
+
 pub fn astra_reasoning_effort(effort: Option<&str>) -> &str {
     match effort {
         Some(effort @ ("low" | "medium" | "high" | "xhigh" | "max")) => effort,
@@ -226,6 +240,17 @@ pub fn provider_reasoning_effort(
     effort: Option<&str>,
 ) -> Option<String> {
     match provider {
+        super::types::LlmProvider::OpenAIChat {
+            base_url, model, ..
+        } if is_direct_deepseek(base_url, model) => Some(
+            match effort {
+                Some("minimal" | "low") => "low",
+                Some("max") => "max",
+                Some("none") | None => "none",
+                _ => "high",
+            }
+            .to_string(),
+        ),
         super::types::LlmProvider::OpenAIChat {
             base_url, model, ..
         }
@@ -1285,5 +1310,21 @@ mod provider_effort_tests {
                 );
             }
         }
+    }
+    #[test]
+    fn direct_deepseek_preserves_max_before_request_construction() {
+        let provider = super::super::types::LlmProvider::OpenAIChat {
+            api_key: "synthetic".into(),
+            base_url: "https://api.deepseek.com".into(),
+            model: "deepseek-flash".into(),
+        };
+        assert_eq!(
+            provider_reasoning_effort(&provider, Some("max")).as_deref(),
+            Some("max")
+        );
+        assert_eq!(
+            provider_reasoning_effort(&provider, None).as_deref(),
+            Some("none")
+        );
     }
 }

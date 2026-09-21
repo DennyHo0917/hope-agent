@@ -249,6 +249,22 @@ fn apply_official_chat_effort(
     if !matches!(thinking_style, ThinkingStyle::Openai) {
         return;
     }
+    if crate::agent::config::is_direct_deepseek(base_url, model) {
+        let enabled = !matches!(effort, None | Some("none"));
+        body["thinking"] = json!({"type": if enabled { "enabled" } else { "disabled" }});
+        if enabled {
+            body["reasoning_effort"] = json!(match effort {
+                Some("minimal" | "low") => "low",
+                Some("max") => "max",
+                _ => "high",
+            });
+        } else {
+            body.as_object_mut()
+                .expect("chat body")
+                .remove("reasoning_effort");
+        }
+        return;
+    }
     let Some(effort) = effort else { return };
     if !matches!(
         effort,
@@ -1307,6 +1323,62 @@ pub(crate) async fn parse_chat_completions_sse(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn direct_deepseek_toggle_and_max_do_not_apply_to_relays() {
+        let style = crate::provider::ThinkingStyle::Openai;
+        for model in [
+            "deepseek-flash",
+            "deepseek-v4-flash",
+            "deepseek-v4-flash-vision-exp",
+            "deepseek-v4-pro",
+        ] {
+            for (effort, expected) in [
+                (None, None),
+                (Some("none"), None),
+                (Some("low"), Some("low")),
+                (Some("medium"), Some("high")),
+                (Some("max"), Some("max")),
+            ] {
+                let mut body = serde_json::json!({"reasoning_effort":"high"});
+                super::apply_official_chat_effort(
+                    &mut body,
+                    "https://api.deepseek.com/v1",
+                    model,
+                    &style,
+                    effort,
+                );
+                assert_eq!(
+                    body["thinking"]["type"],
+                    if expected.is_some() {
+                        "enabled"
+                    } else {
+                        "disabled"
+                    }
+                );
+                assert_eq!(
+                    body.get("reasoning_effort").and_then(|v| v.as_str()),
+                    expected
+                );
+            }
+        }
+        for url in [
+            "https://relay.example",
+            "http://api.deepseek.com",
+            "https://api.deepseek.com:8443",
+            "https://api.deepseek.com.evil.test",
+        ] {
+            let mut body = serde_json::json!({});
+            super::apply_official_chat_effort(
+                &mut body,
+                url,
+                "deepseek-flash",
+                &style,
+                Some("none"),
+            );
+            assert!(body.get("thinking").is_none());
+        }
+    }
+
     #[test]
     fn astra_chat_rejects_tool_requests_before_dispatch_and_retains_text_mode() {
         use crate::agent::streaming_adapter::StreamingChatAdapter;

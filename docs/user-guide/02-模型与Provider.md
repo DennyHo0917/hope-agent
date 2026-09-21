@@ -42,7 +42,7 @@ Hope Agent 通过「**服务商 + API Key**」接入各家大模型。内置**�
 
 新增服务商后,系统会自动把它的第一个模型设为当前默认模型,你可以立刻开始对话。
 
-> **DeepSeek 视觉模型**:新建 DeepSeek 直连服务商时可直接选择 **DeepSeek V4 Flash Vision Exp**。它支持图片输入、百万级上下文和推理。已有 DeepSeek 配置不会被自动改写;需要时可手动添加模型 ID `deepseek-v4-flash-vision-exp`,或重新创建连接。
+> **DeepSeek 视觉模型**:新建 DeepSeek 直连服务商时可直接选择 **DeepSeek V4.1 Flash**。它支持图片输入、百万级上下文和推理。已有 DeepSeek 配置不会被自动改写;需要时可手动添加模型 ID `deepseek-flash`,或重新创建连接。
 
 ### 自定义服务商
 

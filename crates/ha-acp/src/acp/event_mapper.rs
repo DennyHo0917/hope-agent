@@ -48,6 +48,7 @@ pub fn map_agent_event(
 
             SessionUpdate::ToolCall {
                 tool_call_id: call_id,
+                name: Some(name.clone()),
                 title: name,
                 status: "in_progress".to_string(),
                 kind: Some(kind.to_string()),
@@ -159,5 +160,37 @@ mod tests {
                 "content": {"type": "text", "text": "done"}
             }])
         );
+    }
+    #[test]
+    fn tool_name_is_initial_metadata_not_a_result_update() {
+        let call = map_agent_event(
+            &v1(),
+            "s",
+            "m",
+            r#"{"type":"tool_call","call_id":"c","name":"read","arguments":"{}"}"#,
+        )
+        .unwrap();
+        assert_eq!(call.params["update"]["name"], "read");
+        assert_eq!(call.params["update"]["toolCallId"], "c");
+        let result = map_agent_event(
+            &v1(),
+            "s",
+            "m",
+            r#"{"type":"tool_result","call_id":"c","result":"ok"}"#,
+        )
+        .unwrap();
+        assert!(result.params["update"].get("name").is_none());
+        let without_name = SessionUpdate::ToolCall {
+            tool_call_id: "c".into(),
+            name: None,
+            title: "unknown".into(),
+            status: "pending".into(),
+            kind: None,
+            raw_input: None,
+        };
+        assert!(serde_json::to_value(without_name)
+            .unwrap()
+            .get("name")
+            .is_none());
     }
 }

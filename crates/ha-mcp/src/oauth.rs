@@ -90,6 +90,8 @@ pub struct Pkce {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct DiscoveredMetadata {
+    #[serde(default)]
+    pub issuer: Option<String>,
     pub authorization_endpoint: String,
     pub token_endpoint: String,
     #[serde(default)]
@@ -318,6 +320,19 @@ pub async fn discover_metadata(
         server: server_name.to_string(),
         message: format!("discovery JSON parse: {e}"),
     })?;
+    if let Some(issuer) = meta.issuer.as_deref() {
+        let origin = url::Url::parse(server_url)
+            .map_err(|_| McpError::Config("invalid OAuth server URL".into()))?
+            .origin()
+            .ascii_serialization();
+        if issuer != origin {
+            return Err(McpError::Auth {
+                server: server_name.to_string(),
+                message: "OAuth discovery issuer does not match the requested authorization server"
+                    .into(),
+            });
+        }
+    }
     // Spec requires S256; refuse plain `plain` to stop a downgrade.
     if !meta.code_challenge_methods_supported.is_empty()
         && !meta
@@ -635,6 +650,7 @@ fn creds_from_token(
 #[derive(Debug)]
 struct CallbackResult {
     code: String,
+    issuer: Option<String>,
 }
 
 /// Bind `127.0.0.1:0`, return the concrete port + a oneshot future that
@@ -787,8 +803,8 @@ async fn handle_callback_connection(
     let html = b"<!doctype html><html><head><meta charset=\"utf-8\">\
         <title>Hope Agent: OAuth</title>\
         <style>body{font-family:system-ui;margin:4rem;text-align:center;color:#222}</style>\
-        </head><body><h2>Authorization complete</h2>\
-        <p>You can close this tab and return to Hope Agent.</p></body></html>";
+        </head><body><h2>Callback received</h2>\
+        <p>Callback received. Return to Hope Agent to check authorization status.</p></body></html>";
     let response = format!(
         "HTTP/1.1 200 OK\r\n\
          Content-Type: text/html; charset=utf-8\r\n\
@@ -835,7 +851,26 @@ async fn handle_callback_connection(
         );
         return Ok(CallbackOutcome::Ignored);
     }
-    Ok(CallbackOutcome::Matched(CallbackResult { code }))
+    Ok(CallbackOutcome::Matched(CallbackResult {
+        code,
+        issuer: params.get("iss").cloned(),
+    }))
+}
+
+fn validate_callback_issuer(
+    server_name: &str,
+    expected: Option<&str>,
+    received: Option<&str>,
+) -> McpResult<()> {
+    if let Some(received) = received {
+        if received.is_empty() || expected != Some(received) {
+            return Err(McpError::Auth {
+                server: server_name.to_string(),
+                message: "OAuth callback issuer mismatch; authorization code not redeemed".into(),
+            });
+        }
+    }
+    Ok(())
 }
 
 // ── Orchestrator ──────────────────────────────────────────────────
@@ -888,6 +923,7 @@ async fn authorize_server_inner(
         oauth_cfg.token_endpoint.as_deref(),
     ) {
         (Some(auth_ep), Some(token_ep)) => DiscoveredMetadata {
+            issuer: None,
             authorization_endpoint: auth_ep.to_string(),
             token_endpoint: token_ep.to_string(),
             registration_endpoint: None,
@@ -982,6 +1018,12 @@ async fn authorize_server_inner(
     };
     let cb_result = cb_result?;
 
+    validate_callback_issuer(
+        server_name,
+        meta.issuer.as_deref(),
+        cb_result.issuer.as_deref(),
+    )?;
+
     // 6. Exchange the code for tokens.
     let creds = exchange_code_for_tokens(
         server_name,
@@ -1014,9 +1056,23 @@ async fn authorize_server_inner(
     Ok(creds)
 }
 
-/// Refresh the stored tokens if they're about to expire (60s safety
-/// margin) or already did. Returns the freshest credentials record —
-/// which the caller must re-persist when it differs from the input.
+#[derive(Default)]
+struct RefreshState {
+    failed_access_token: Option<String>,
+}
+
+fn refresh_slot(server_id: &str) -> std::sync::Arc<tokio::sync::Mutex<RefreshState>> {
+    type Slots = HashMap<String, std::sync::Arc<tokio::sync::Mutex<RefreshState>>>;
+    static SLOTS: std::sync::LazyLock<std::sync::Mutex<Slots>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
+    let mut slots = SLOTS.lock().unwrap_or_else(|e| e.into_inner());
+    // Retain a failed-token fence for the process lifetime: a provider may have
+    // rotated the token even when its response or local publication failed.
+    slots.entry(server_id.to_string()).or_default().clone()
+}
+
+/// Refresh and conditionally persist expiring credentials under a per-server
+/// lock. Callers must not persist the returned record a second time.
 /// On refresh failure surfaces `McpError::Auth` so the transport layer
 /// can drop the server into `NeedsAuth`.
 pub async fn refresh_if_stale(
@@ -1027,24 +1083,54 @@ pub async fn refresh_if_stale(
     if !current.needs_refresh() {
         return Ok(current.clone());
     }
-    let refreshed = refresh_access_token(server_name, current)
+    let slot = refresh_slot(server_id);
+    let mut state = slot.lock().await;
+    let credential_id = server_id.to_string();
+    let latest = ha_core::blocking::run_blocking(move || credentials::load(&credential_id))
         .await
-        .map_err(|e| {
-            ha_core::app_warn!(
-                "mcp",
-                &format!("{server_name}:oauth"),
-                "refresh_access_token failed: {e}"
-            );
-            e
+        .map_err(|_| McpError::Auth {
+            server: server_name.to_string(),
+            message: "could not reload OAuth credentials".into(),
+        })?
+        .ok_or_else(|| McpError::Auth {
+            server: server_name.to_string(),
+            message: "OAuth credentials removed; re-authorize required".into(),
         })?;
+    if latest.client_id != current.client_id
+        || latest.token_endpoint != current.token_endpoint
+        || latest.authorization_endpoint != current.authorization_endpoint
+        || latest.client_secret != current.client_secret
+        || latest.token_endpoint_auth_method != current.token_endpoint_auth_method
+    {
+        return Err(McpError::Auth {
+            server: server_name.to_string(),
+            message: "OAuth identity changed; reconnect required".into(),
+        });
+    }
+    if !latest.needs_refresh() {
+        return Ok(latest);
+    }
+    if state.failed_access_token.as_ref() == Some(&latest.access_token) {
+        return Err(McpError::Auth {
+            server: server_name.to_string(),
+            message: "OAuth refresh outcome uncertain; re-authorize required".into(),
+        });
+    }
+    // Set before dispatch so cancellation, response loss and failed persistence
+    // all fail closed rather than retrying a possibly consumed refresh token.
+    state.failed_access_token = Some(latest.access_token.clone());
+    let refreshed = refresh_access_token(server_name, &latest).await?;
     let credential_id = server_id.to_string();
     let stored_creds = refreshed.clone();
-    ha_core::blocking::run_blocking(move || credentials::save(&credential_id, &stored_creds))
-        .await
-        .map_err(|e| McpError::Auth {
-            server: server_name.to_string(),
-            message: format!("persist refreshed credentials: {e}"),
-        })?;
+    ha_core::blocking::run_blocking(move || {
+        credentials::save_if_current(&credential_id, &latest, &stored_creds)
+    })
+    .await
+    .map_err(|_| McpError::Auth {
+        server: server_name.to_string(),
+        message: "refresh publication rejected; reconnect or re-authorize required".into(),
+    })?;
+    state.failed_access_token = None;
     ha_core::app_info!(
         "mcp",
         &format!("{server_name}:oauth"),
@@ -1262,5 +1348,47 @@ mod auth_method_tests {
             TokenEndpointAuthMethod::legacy(None),
             TokenEndpointAuthMethod::None
         );
+    }
+    #[test]
+    fn callback_issuer_is_exact_and_never_inferred_from_callback() {
+        assert!(validate_callback_issuer(
+            "fixture",
+            Some("https://issuer.example"),
+            Some("https://issuer.example")
+        )
+        .is_ok());
+        for received in ["", "https://other.example", "https://issuer.example/"] {
+            assert!(validate_callback_issuer(
+                "fixture",
+                Some("https://issuer.example"),
+                Some(received)
+            )
+            .is_err());
+        }
+        assert!(validate_callback_issuer("fixture", None, Some("https://issuer.example")).is_err());
+        assert!(validate_callback_issuer("fixture", Some("https://issuer.example"), None).is_ok());
+    }
+    #[tokio::test]
+    async fn uncertain_refresh_fence_survives_all_waiters_dropping() {
+        {
+            let slot = refresh_slot("synthetic-uncertain-refresh");
+            slot.lock().await.failed_access_token = Some("synthetic-consumed".into());
+        }
+        let slot = refresh_slot("synthetic-uncertain-refresh");
+        assert_eq!(
+            slot.lock().await.failed_access_token.as_deref(),
+            Some("synthetic-consumed")
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_slots_serialize_one_server_but_not_distinct_servers() {
+        let first = refresh_slot("synthetic-server-1");
+        let same = refresh_slot("synthetic-server-1");
+        let other = refresh_slot("synthetic-server-2");
+        assert!(std::sync::Arc::ptr_eq(&first, &same));
+        let _guard = first.lock().await;
+        assert!(same.try_lock().is_err());
+        assert!(other.try_lock().is_ok());
     }
 }

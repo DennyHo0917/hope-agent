@@ -141,9 +141,13 @@ flowchart TD
 - Copilot 新建默认列表移除 7 月已退役的 Gemini 2.5 Pro / 3 Flash，以及 9 月 1 日将退役的 Gemini 3.1 Pro、Opus 4.6、Sonnet 4.6、Raptor mini。Sonnet 4.6 年付个人计划的例外仍可自行配置，既有配置不删除，也不把账户目录等同于全局可用性。[7 月公告](https://github.blog/changelog/2026-07-31-gemini-2-5-pro-and-gemini-3-flash-deprecated/)、[9 月退役公告](https://github.blog/changelog/2026-07-31-upcoming-august-2026-model-deprecations-in-github-copilot/)
 - OpenAI 直连的 GPT-5.6 / Sol 基础输入/输出价为每百万令牌 4/20 美元，促销至少持续至 2026-11-21；Sonnet 5 直连基础价为 2/10 美元，已转为长期定价。同步内置估算表，不覆盖用户价格或网关模板报价。缓存、长上下文阶梯、实际账单与历史价不是本表表达的内容，大盘仍是估算而非账单；促销结束前重新核验。[Sol 定价](https://developers.openai.com/api/docs/models/gpt-5.6-sol)、[Claude 定价](https://platform.claude.com/docs/en/about-claude/pricing)
 
-#### 2026-09-04 DeepSeek V4 视觉模型
+#### 2026-09-21 DeepSeek Flash 与退役目录
 
-DeepSeek 直连模板新增 `deepseek-v4-flash-vision-exp`，继续使用 `openai-chat` 协议。模型目录明确声明 `inputTypes: ["text", "image"]`、百万 Token 上下文与推理能力，因此可直接接收图片，无需视觉桥代转。Dashboard 估价表同步识别该 ID，并按 DeepSeek 当前高峰费率保守估算 Flash / Pro；实际账单仍以厂商时段计价为准。模板只影响新建 Provider，既有用户配置绝不自动增删模型或改价；需由用户手动加入该模型，或重建 DeepSeek 连接。
+DeepSeek 新建直连模板使用官方规范 ID `deepseek-flash`（V4.1 Flash），文本/图片、百万上下文与 384,000 最大输出；保留文本版 `deepseek-v4-pro`。新 Flash 模板和规范 ID 的兜底估价采用高峰输入/输出 0.30/1.20 美元每百万令牌；峰谷、缓存和公共假期没有纳入实际账单结算。旧 Flash 别名仍由官方接受，既有用户模型、显式文本输入限制与用户价格不自动改写，网关旧别名兜底报价也不按直连公告批量覆盖。[模型和价格](https://api-docs.deepseek.com/quick_start/pricing/)
+
+只对官方 HTTPS 主机、443 端口和精确 Flash/Pro 型号应用 Chat 请求契约：`none`（包含运行时关闭后得到的空值）显式发送 `thinking.type=disabled`，开启时 `minimal/low → low`、`medium/high/xhigh → high`、`max → max`。档位在进入适配器前保留，不修改用户偏好；历史 `reasoning_content` 的既有工具回放规则不变，也不能借此清除旧历史。其他端点/协议保持原映射。[思考契约](https://api-docs.deepseek.com/guides/thinking_mode)
+
+Fireworks 新建模板移除公告精确命中的 `accounts/fireworks/models/kimi-k2p6`（2026-09-25 无服务器退役）。`glm-5p2-fast`、`kimi-k2p6-turbo` 等路由映射仍待证据；不因名字相似删除用户专属部署或宣称替代模型已验证。[官方退役公告](https://docs.fireworks.ai/updates/changelog#upcoming-serverless-deprecation-older-deepseek-glm-muse-and-kimi-models)
 
 #### 2026-09-07 模型与会话兼容边界
 

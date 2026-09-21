@@ -13,6 +13,9 @@
 
 use std::fs;
 use std::io;
+use std::sync::Mutex;
+
+static CREDENTIAL_WRITE_LOCK: Mutex<()> = Mutex::new(());
 
 use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
@@ -50,7 +53,7 @@ impl TokenEndpointAuthMethod {
 
 /// Persisted OAuth credentials for a single MCP server. Populated at the
 /// end of the PKCE flow and rewritten on each refresh.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct McpCredentials {
     /// OAuth client id — either user-provided or assigned via Dynamic
@@ -120,6 +123,13 @@ pub fn load(server_id: &str) -> Result<Option<McpCredentials>> {
 /// Atomically persist credentials for a server id. Overwrites any prior
 /// file in place.
 pub fn save(server_id: &str, creds: &McpCredentials) -> Result<()> {
+    let _guard = CREDENTIAL_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    save_unlocked(server_id, creds)
+}
+
+fn save_unlocked(server_id: &str, creds: &McpCredentials) -> Result<()> {
     let path = mcp_credential_path(server_id)?;
     let bytes =
         serde_json::to_vec_pretty(creds).map_err(|e| anyhow!("serialize credentials: {e}"))?;
@@ -127,10 +137,36 @@ pub fn save(server_id: &str, creds: &McpCredentials) -> Result<()> {
     Ok(())
 }
 
+/// Publish a refresh only while its original record still owns the slot.
+/// A concurrent sign-out, reauthorization or refresh must never be overwritten.
+pub fn save_if_current(
+    server_id: &str,
+    prior: &McpCredentials,
+    refreshed: &McpCredentials,
+) -> Result<()> {
+    let _guard = CREDENTIAL_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
+    require_current(load(server_id)?.as_ref(), prior)?;
+    save_unlocked(server_id, refreshed)
+}
+
+fn require_current(current: Option<&McpCredentials>, prior: &McpCredentials) -> Result<()> {
+    if current != Some(prior) {
+        return Err(anyhow!(
+            "credentials changed during refresh; re-connect or re-authorize"
+        ));
+    }
+    Ok(())
+}
+
 /// Delete credentials on the user's behalf — called when they click
 /// "Sign out" or when the owning server is removed from config. Missing
 /// file is not an error.
 pub fn clear(server_id: &str) -> Result<()> {
+    let _guard = CREDENTIAL_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|e| e.into_inner());
     let path = mcp_credential_path(server_id)?;
     match fs::remove_file(&path) {
         Ok(()) => Ok(()),
@@ -185,5 +221,22 @@ mod tests {
         assert!(c.needs_refresh());
         c.expires_at = chrono::Utc::now().timestamp() + 600;
         assert!(!c.needs_refresh());
+    }
+    #[test]
+    fn refresh_publication_rejects_removed_or_replaced_credentials() {
+        let prior: McpCredentials = serde_json::from_value(serde_json::json!({
+            "clientId":"client", "accessToken":"synthetic-old",
+            "tokenEndpoint":"https://example.com/token",
+            "authorizationEndpoint":"https://example.com/authorize"
+        }))
+        .unwrap();
+        assert!(require_current(Some(&prior), &prior).is_ok());
+        assert!(require_current(None, &prior).is_err());
+        let mut changed = prior.clone();
+        changed.access_token = "synthetic-new".into();
+        assert!(require_current(Some(&changed), &prior).is_err());
+        changed = prior.clone();
+        changed.client_id = "other-client".into();
+        assert!(require_current(Some(&changed), &prior).is_err());
     }
 }

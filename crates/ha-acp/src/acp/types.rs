@@ -464,6 +464,9 @@ pub enum SessionUpdate {
     ToolCall {
         #[serde(rename = "toolCallId")]
         tool_call_id: String,
+        /// Opaque display metadata; never used to authorize a tool.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        name: Option<String>,
         title: String,
         status: String,
         #[serde(skip_serializing_if = "Option::is_none")]

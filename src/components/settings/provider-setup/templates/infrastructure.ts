@@ -1258,16 +1258,8 @@ export const infrastructureTemplates: ProviderTemplate[] = [
         costInput: 2.0,
         costOutput: 8.0,
       },
-      {
-        id: "accounts/fireworks/models/kimi-k2p6",
-        name: "Kimi K2.6",
-        inputTypes: ["text", "image"],
-        contextWindow: 262144,
-        maxTokens: 262144,
-        reasoning: false,
-        costInput: 0.95,
-        costOutput: 4.0,
-      },
+      // Serverless kimi-k2p6 retires on 2026-09-25. Dedicated user
+      // deployments remain editable; unverified router aliases are retained.
       {
         id: "accounts/fireworks/routers/kimi-k2p5-turbo",
         name: "Kimi K2.5 Turbo (Fire Pass)",

@@ -104,24 +104,32 @@ describe("provider template lifecycle hygiene", () => {
     })
   })
 
-  it("advertises only the DeepSeek vision model as image-capable", () => {
+  it("uses the canonical multimodal DeepSeek Flash and preserves Pro", () => {
     const provider = PROVIDER_TEMPLATES.find((template) => template.key === "deepseek")
-    expect(
-      provider?.models.find((model) => model.id === "deepseek-v4-flash-vision-exp"),
-    ).toMatchObject({
+    expect(provider?.models.find((model) => model.id === "deepseek-flash")).toMatchObject({
       inputTypes: ["text", "image"],
       contextWindow: 1_000_000,
       maxTokens: 384_000,
       reasoning: true,
-      costInput: 0.44,
-      costOutput: 1.32,
+      costInput: 0.3,
+      costOutput: 1.2,
     })
-    expect(provider?.models.find((model) => model.id === "deepseek-v4-flash")?.inputTypes).toEqual([
-      "text",
-    ])
     expect(provider?.models.find((model) => model.id === "deepseek-v4-pro")?.inputTypes).toEqual([
       "text",
     ])
+    expect(provider?.models.some((model) => model.id === "deepseek-v4-flash-vision-exp")).toBe(
+      false,
+    )
+  })
+
+  it("removes the exactly identified retiring Fireworks serverless preset", () => {
+    const provider = PROVIDER_TEMPLATES.find((template) => template.key === "fireworks")
+    expect(
+      provider?.models.some((model) => model.id === "accounts/fireworks/models/kimi-k2p6"),
+    ).toBe(false)
+    expect(
+      provider?.models.some((model) => model.id === "accounts/fireworks/routers/kimi-k2p5-turbo"),
+    ).toBe(true)
   })
 
   it("does not offer retired direct model IDs to newly configured providers", () => {
