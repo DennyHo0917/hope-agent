@@ -20,7 +20,16 @@ pub fn build_health_status(
 
 /// Check if a binary is executable by running `<binary> --version`.
 pub async fn probe_binary(binary_path: &str) -> AcpHealthStatus {
+    probe_binary_with_environment(binary_path, super::configure_child_environment).await
+}
+
+pub(super) async fn probe_binary_with_environment(
+    binary_path: &str,
+    configure: impl FnOnce(&mut tokio::process::Command),
+) -> AcpHealthStatus {
     let mut cmd = tokio::process::Command::new(binary_path);
+    configure(&mut cmd);
+    cmd.kill_on_drop(true);
     cmd.arg("--version")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());

@@ -128,9 +128,60 @@ pub async fn checked_get_with_admission<F, Fut, G>(
     allowlist: &[String],
     max_redirects: usize,
     headers: Option<&HeaderMap>,
+    before_request: F,
+) -> std::result::Result<(CheckedGetResponse, G), CheckedGetError>
+where
+    F: FnMut(&url::Url) -> Fut,
+    Fut: Future<Output = G>,
+{
+    checked_get_with_client_and_admission(
+        |_| Ok(client.clone()),
+        url_str,
+        policy,
+        allowlist,
+        max_redirects,
+        headers,
+        before_request,
+    )
+    .await
+}
+
+/// Choose a no-redirect client for each validated target (including proxy
+/// selection). No credentials or caller-supplied headers are forwarded.
+pub async fn checked_get_with_client_factory<C>(
+    url_str: &str,
+    policy: SsrfPolicy,
+    allowlist: &[String],
+    max_redirects: usize,
+    client_for_url: C,
+) -> std::result::Result<CheckedGetResponse, CheckedGetError>
+where
+    C: FnMut(&url::Url) -> reqwest::Result<reqwest::Client>,
+{
+    checked_get_with_client_and_admission(
+        client_for_url,
+        url_str,
+        policy,
+        allowlist,
+        max_redirects,
+        None,
+        |_| std::future::ready(()),
+    )
+    .await
+    .map(|(response, ())| response)
+}
+
+async fn checked_get_with_client_and_admission<C, F, Fut, G>(
+    mut client_for_url: C,
+    url_str: &str,
+    policy: SsrfPolicy,
+    allowlist: &[String],
+    max_redirects: usize,
+    headers: Option<&HeaderMap>,
     mut before_request: F,
 ) -> std::result::Result<(CheckedGetResponse, G), CheckedGetError>
 where
+    C: FnMut(&url::Url) -> reqwest::Result<reqwest::Client>,
     F: FnMut(&url::Url) -> Fut,
     Fut: Future<Output = G>,
 {
@@ -148,6 +199,9 @@ where
         }
 
         let admission = before_request(&next).await;
+        let client = client_for_url(&next).map_err(|_| {
+            CheckedGetError::new(CheckedGetErrorKind::Request, "could not build HTTP client")
+        })?;
         let mut request = client.get(next.clone());
         if let Some(headers) = headers {
             request = request.headers(headers.clone());

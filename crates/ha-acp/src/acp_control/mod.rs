@@ -38,3 +38,28 @@ pub fn set_acp_manager(manager: AcpArc<AcpSessionManager>) {
 pub fn get_acp_manager() -> Option<&'static AcpArc<AcpSessionManager>> {
     ACP_MANAGER.get()
 }
+
+/// Minimal environment for distributions that do not declare inherited auth.
+pub(super) fn configure_child_environment(cmd: &mut tokio::process::Command) {
+    cmd.env_clear();
+    for key in [
+        "HOME",
+        "USER",
+        "USERPROFILE",
+        "PATH",
+        "LANG",
+        "LC_ALL",
+        "TZ",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "PATHEXT",
+    ] {
+        if let Some(value) = std::env::var_os(key) {
+            cmd.env(key, value);
+        }
+    }
+}

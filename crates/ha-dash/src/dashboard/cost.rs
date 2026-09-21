@@ -181,6 +181,7 @@ pub(super) fn estimate_cost(model_id: &str, input_tokens: u64, output_tokens: u6
         // DeepSeek. `deepseek-chat` / `-reasoner` now alias the V4 Flash tier.
         // 2026-08-16 起采用峰谷定价；估算表只能记录一组费率，因此按高峰价保守入账。
         m if m.contains("deepseek-v4-pro") || m.contains("DeepSeek-V4-Pro") => (1.32, 3.96),
+        "deepseek-flash" => (0.30, 1.20),
         m if m.contains("deepseek-v4-flash") || m.contains("DeepSeek-V4-Flash") => (0.44, 1.32),
         m if m.contains("deepseek-chat") || m.contains("deepseek-reasoner") => (0.44, 1.32),
         m if m.contains("DeepSeek-R1") || m.contains("deepseek-r1") => (0.55, 2.19),

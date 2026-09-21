@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 
 use super::config::{AcpBackendProtocol, AcpControlConfig};
 use super::types::{AcpBackendInfo, AcpHealthStatus, AcpRuntime};
+use ha_config_schema::acp_control::AcpDistributionAuth;
 
 /// Global registry of ACP runtime backends.
 pub struct AcpRuntimeRegistry {
@@ -171,7 +172,7 @@ pub async fn auto_discover_and_register(registry: &AcpRuntimeRegistry, config: &
         if !backend.enabled {
             continue;
         }
-        if backend.distribution.is_none() {
+        let Some(distribution) = backend.distribution.as_ref() else {
             app_warn!(
                 "acp_control",
                 "distribution",
@@ -179,7 +180,7 @@ pub async fn auto_discover_and_register(registry: &AcpRuntimeRegistry, config: &
                 backend.id
             );
             continue;
-        }
+        };
         let binary_path = if std::path::Path::new(&backend.binary).is_absolute() {
             if std::path::Path::new(&backend.binary).exists() {
                 Some(backend.binary.clone())
@@ -198,7 +199,8 @@ pub async fn auto_discover_and_register(registry: &AcpRuntimeRegistry, config: &
                 backend.acp_args.clone(),
                 backend.protocol,
                 backend.env.clone(),
-            );
+            )
+            .with_auth_method(distribution.auth_method);
             registry.register(Arc::new(runtime)).await;
         }
     }
@@ -223,7 +225,8 @@ pub async fn auto_discover_and_register(registry: &AcpRuntimeRegistry, config: &
                     args.iter().map(|arg| (*arg).to_string()).collect(),
                     AcpBackendProtocol::V1,
                     HashMap::new(),
-                );
+                )
+                .with_auth_method(AcpDistributionAuth::InheritedEnvironment);
                 registry.register(Arc::new(runtime)).await;
             }
         }

@@ -56,15 +56,15 @@ pub(super) fn build_search_client(timeout_secs: u64) -> Result<reqwest::Client> 
 pub(super) fn build_search_client_for_url(
     target_url: &str,
     timeout_secs: u64,
-) -> Result<reqwest::Client> {
+) -> reqwest::Result<reqwest::Client> {
     crate::provider::apply_proxy_for_url(
         reqwest::Client::builder()
             .user_agent(DEFAULT_WEB_FETCH_USER_AGENT)
             .timeout(std::time::Duration::from_secs(timeout_secs)),
         target_url,
     )
+    .redirect(reqwest::redirect::Policy::none())
     .build()
-    .map_err(|e| anyhow::anyhow!("Failed to create HTTP client: {}", e))
 }
 
 pub(super) fn strip_html_tags(html: &str) -> String {

@@ -17,8 +17,8 @@ pub const MCP_SUPPORTED_PROTOCOL_VERSIONS: &[&str] = &[
     MCP_PROTOCOL_2025_03_26,
 ];
 
-/// 单条 stdio 连接的协商状态。未初始化时按最新协议生成结果；收到
-/// `initialize` 后，精确接受受支持版本，未知版本回落到最新版本。
+/// 单条 stdio 连接的旧版协商状态。现代协议由每个请求的元数据选择，
+/// 不改写连接状态；initialize 只在旧版本之间协商。
 #[derive(Debug, Clone, Copy)]
 pub struct McpProtocolSession {
     negotiated_version: &'static str,
@@ -27,7 +27,7 @@ pub struct McpProtocolSession {
 impl Default for McpProtocolSession {
     fn default() -> Self {
         Self {
-            negotiated_version: MCP_PROTOCOL_2026_07_28,
+            negotiated_version: MCP_PROTOCOL_2025_11_25,
         }
     }
 }
@@ -40,10 +40,60 @@ impl McpProtocolSession {
                 MCP_SUPPORTED_PROTOCOL_VERSIONS
                     .iter()
                     .copied()
-                    .find(|supported| *supported == requested)
+                    .find(|supported| {
+                        *supported == requested && *supported != MCP_PROTOCOL_2026_07_28
+                    })
             })
-            .unwrap_or(MCP_PROTOCOL_2026_07_28);
+            .unwrap_or(MCP_PROTOCOL_2025_11_25);
         self.negotiated_version
+    }
+
+    /// Per-request metadata overrides only this request, never legacy session state.
+    pub fn for_request(&self, params: &Value) -> Result<Self, Value> {
+        let Some(meta) = params.get("_meta") else {
+            return Ok(*self);
+        };
+        let version = meta.get("io.modelcontextprotocol/protocolVersion");
+        let Some(version) = version else {
+            return Ok(*self);
+        };
+        let Some(requested) = version.as_str() else {
+            return Err(json!({"code": -32602, "message": "Invalid protocol version metadata"}));
+        };
+        let Some(selected) = MCP_SUPPORTED_PROTOCOL_VERSIONS
+            .iter()
+            .copied()
+            .find(|version| *version == requested)
+        else {
+            return Err(
+                json!({"code": -32022, "message": "Unsupported protocol version",
+                "data": {"supported": MCP_SUPPORTED_PROTOCOL_VERSIONS, "requested": requested}}),
+            );
+        };
+        if selected == MCP_PROTOCOL_2026_07_28
+            && !meta
+                .get("io.modelcontextprotocol/clientCapabilities")
+                .is_some_and(Value::is_object)
+        {
+            return Err(
+                json!({"code": -32602, "message": "Missing or invalid client capabilities"}),
+            );
+        }
+        Ok(Self {
+            negotiated_version: selected,
+        })
+    }
+
+    pub fn is_modern(&self) -> bool {
+        self.negotiated_version == MCP_PROTOCOL_2026_07_28
+    }
+
+    pub fn complete_list_result(&self, mut result: Value) -> Value {
+        if self.is_modern() {
+            result["ttlMs"] = json!(0);
+            result["cacheScope"] = json!("private");
+        }
+        self.complete_result(result)
     }
 
     pub fn negotiated_version(&self) -> &'static str {
@@ -105,12 +155,47 @@ mod tests {
     }
 
     #[test]
-    fn latest_and_unknown_versions_use_2026_result_discriminator() {
+    fn unknown_legacy_initialize_falls_back_to_a_legacy_version() {
         let mut session = McpProtocolSession::default();
         assert_eq!(
             session.negotiate_initialize(&json!({ "protocolVersion": "2099-01-01" })),
-            MCP_PROTOCOL_2026_07_28
+            MCP_PROTOCOL_2025_11_25
         );
-        assert_eq!(session.complete_result(json!({}))["resultType"], "complete");
+        assert!(session
+            .complete_result(json!({}))
+            .get("resultType")
+            .is_none());
+    }
+    #[test]
+    fn modern_metadata_is_request_local_and_cache_fields_are_versioned() {
+        let mut legacy = McpProtocolSession::default();
+        legacy.negotiate_initialize(&json!({"protocolVersion": MCP_PROTOCOL_2025_03_26}));
+        let modern = legacy
+            .for_request(&json!({"_meta": {
+                "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_2026_07_28,
+                "io.modelcontextprotocol/clientCapabilities": {}
+            }}))
+            .unwrap();
+        let result = modern.complete_list_result(json!({"tools": []}));
+        assert_eq!(result["resultType"], "complete");
+        assert_eq!(result["ttlMs"], 0);
+        assert_eq!(result["cacheScope"], "private");
+        assert_eq!(legacy.negotiated_version(), MCP_PROTOCOL_2025_03_26);
+        assert!(legacy
+            .complete_list_result(json!({"tools": []}))
+            .get("ttlMs")
+            .is_none());
+        let unknown = legacy
+            .for_request(&json!({"_meta": {
+                "io.modelcontextprotocol/protocolVersion": "2099-01-01"
+            }}))
+            .unwrap_err();
+        assert_eq!(unknown["code"], -32022);
+        assert_eq!(unknown["data"]["requested"], "2099-01-01");
+        assert!(legacy
+            .for_request(&json!({"_meta": {
+                "io.modelcontextprotocol/protocolVersion": MCP_PROTOCOL_2026_07_28
+            }}))
+            .is_err());
     }
 }

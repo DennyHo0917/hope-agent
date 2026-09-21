@@ -1524,11 +1524,13 @@ impl AcpAgent {
                     let mut start_update = session_update_params(
                         &self.protocol_version,
                         session_id,
-                        serde_json::json!({
-                            "sessionUpdate": "tool_call",
-                            "toolCallId": call_id,
-                            "title": tool_name,
-                            "status": status,
+                        serde_json::json!(SessionUpdate::ToolCall {
+                            tool_call_id: call_id.to_string(),
+                            name: msg.tool_name.clone(),
+                            title: tool_name.to_string(),
+                            status: status.to_string(),
+                            kind: None,
+                            raw_input: None,
                         }),
                     );
                     start_update["final"] = Value::Bool(true);

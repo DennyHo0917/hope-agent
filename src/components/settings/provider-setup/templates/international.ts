@@ -543,14 +543,14 @@ export const internationalTemplates: ProviderTemplate[] = [
       // DeepSeek 自 2026-08-16 起采用峰谷定价；模型配置只能记录一组费率，
       // 因此按高峰价保守估算，避免 Dashboard 在高峰时段低报成本。
       {
-        id: "deepseek-v4-flash",
-        name: "DeepSeek V4 Flash",
-        inputTypes: ["text"],
+        id: "deepseek-flash",
+        name: "DeepSeek V4.1 Flash",
+        inputTypes: ["text", "image"],
         contextWindow: 1000000,
         maxTokens: 384000,
         reasoning: true,
-        costInput: 0.44,
-        costOutput: 1.32,
+        costInput: 0.3,
+        costOutput: 1.2,
       },
       {
         id: "deepseek-v4-pro",
@@ -561,16 +561,6 @@ export const internationalTemplates: ProviderTemplate[] = [
         reasoning: true,
         costInput: 1.32,
         costOutput: 3.96,
-      },
-      {
-        id: "deepseek-v4-flash-vision-exp",
-        name: "DeepSeek V4 Flash Vision Exp",
-        inputTypes: ["text", "image"],
-        contextWindow: 1000000,
-        maxTokens: 384000,
-        reasoning: true,
-        costInput: 0.44,
-        costOutput: 1.32,
       },
     ],
   },

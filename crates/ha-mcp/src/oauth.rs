@@ -90,6 +90,8 @@ pub struct Pkce {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub struct DiscoveredMetadata {
+    #[serde(default)]
+    pub issuer: Option<String>,
     pub authorization_endpoint: String,
     pub token_endpoint: String,
     #[serde(default)]
@@ -318,6 +320,19 @@ pub async fn discover_metadata(
         server: server_name.to_string(),
         message: format!("discovery JSON parse: {e}"),
     })?;
+    if let Some(issuer) = meta.issuer.as_deref() {
+        let origin = url::Url::parse(server_url)
+            .map_err(|_| McpError::Config("invalid OAuth server URL".into()))?
+            .origin()
+            .ascii_serialization();
+        if issuer != origin {
+            return Err(McpError::Auth {
+                server: server_name.to_string(),
+                message: "OAuth discovery issuer does not match the requested authorization server"
+                    .into(),
+            });
+        }
+    }
     // Spec requires S256; refuse plain `plain` to stop a downgrade.
     if !meta.code_challenge_methods_supported.is_empty()
         && !meta
@@ -452,6 +467,14 @@ pub async fn refresh_access_token(
     server_name: &str,
     prior: &McpCredentials,
 ) -> McpResult<McpCredentials> {
+    refresh_access_token_with_admission(server_name, prior, || Ok(())).await
+}
+
+async fn refresh_access_token_with_admission(
+    server_name: &str,
+    prior: &McpCredentials,
+    before_dispatch: impl FnOnce() -> McpResult<()>,
+) -> McpResult<McpCredentials> {
     let refresh = prior
         .refresh_token
         .as_deref()
@@ -468,15 +491,18 @@ pub async fn refresh_access_token(
     let auth_method = prior
         .token_endpoint_auth_method
         .unwrap_or_else(|| TokenEndpointAuthMethod::legacy(prior.client_secret.as_deref()));
-    let token = post_token_form(
+    let prepared = prepare_token_form(
         server_name,
         &prior.token_endpoint,
         &form,
         &prior.client_id,
         prior.client_secret.as_deref(),
         auth_method,
-    )
-    .await?;
+    )?;
+    // URL admission, client/auth construction and RequestBuilder validation
+    // are definitely local. Only fence once all have succeeded.
+    before_dispatch()?;
+    let token = dispatch_token_request(server_name, prepared).await?;
     let mut creds = creds_from_token(
         &prior.client_id,
         prior.client_secret.as_deref(),
@@ -545,6 +571,30 @@ async fn post_token_form(
     client_secret: Option<&str>,
     auth_method: TokenEndpointAuthMethod,
 ) -> McpResult<TokenFields> {
+    let prepared = prepare_token_form(
+        server_name,
+        token_endpoint,
+        form,
+        client_id,
+        client_secret,
+        auth_method,
+    )?;
+    dispatch_token_request(server_name, prepared).await
+}
+
+struct PreparedTokenRequest {
+    client: reqwest::Client,
+    request: reqwest::Request,
+}
+
+fn prepare_token_form(
+    server_name: &str,
+    token_endpoint: &str,
+    form: &[(&str, &str)],
+    client_id: &str,
+    client_secret: Option<&str>,
+    auth_method: TokenEndpointAuthMethod,
+) -> McpResult<PreparedTokenRequest> {
     let client = http_client()?;
     let request = token_request(
         &client,
@@ -555,10 +605,25 @@ async fn post_token_form(
         client_secret,
         auth_method,
     )?;
-    let resp = request.send().await.map_err(|e| McpError::Transport {
+    let request = request.build().map_err(|_| McpError::Transport {
         server: server_name.to_string(),
-        source: format!("token POST: {e}"),
+        source: "could not build OAuth token request".into(),
     })?;
+    Ok(PreparedTokenRequest { client, request })
+}
+
+async fn dispatch_token_request(
+    server_name: &str,
+    prepared: PreparedTokenRequest,
+) -> McpResult<TokenFields> {
+    let resp = prepared
+        .client
+        .execute(prepared.request)
+        .await
+        .map_err(|e| McpError::Transport {
+            server: server_name.to_string(),
+            source: format!("token POST: {}", e.without_url()),
+        })?;
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -635,6 +700,7 @@ fn creds_from_token(
 #[derive(Debug)]
 struct CallbackResult {
     code: String,
+    issuer: Option<String>,
 }
 
 /// Bind `127.0.0.1:0`, return the concrete port + a oneshot future that
@@ -787,8 +853,8 @@ async fn handle_callback_connection(
     let html = b"<!doctype html><html><head><meta charset=\"utf-8\">\
         <title>Hope Agent: OAuth</title>\
         <style>body{font-family:system-ui;margin:4rem;text-align:center;color:#222}</style>\
-        </head><body><h2>Authorization complete</h2>\
-        <p>You can close this tab and return to Hope Agent.</p></body></html>";
+        </head><body><h2>Callback received</h2>\
+        <p>Callback received. Return to Hope Agent to check authorization status.</p></body></html>";
     let response = format!(
         "HTTP/1.1 200 OK\r\n\
          Content-Type: text/html; charset=utf-8\r\n\
@@ -835,7 +901,26 @@ async fn handle_callback_connection(
         );
         return Ok(CallbackOutcome::Ignored);
     }
-    Ok(CallbackOutcome::Matched(CallbackResult { code }))
+    Ok(CallbackOutcome::Matched(CallbackResult {
+        code,
+        issuer: params.get("iss").cloned(),
+    }))
+}
+
+fn validate_callback_issuer(
+    server_name: &str,
+    expected: Option<&str>,
+    received: Option<&str>,
+) -> McpResult<()> {
+    if let Some(received) = received {
+        if received.is_empty() || expected != Some(received) {
+            return Err(McpError::Auth {
+                server: server_name.to_string(),
+                message: "OAuth callback issuer mismatch; authorization code not redeemed".into(),
+            });
+        }
+    }
+    Ok(())
 }
 
 // ── Orchestrator ──────────────────────────────────────────────────
@@ -888,6 +973,7 @@ async fn authorize_server_inner(
         oauth_cfg.token_endpoint.as_deref(),
     ) {
         (Some(auth_ep), Some(token_ep)) => DiscoveredMetadata {
+            issuer: None,
             authorization_endpoint: auth_ep.to_string(),
             token_endpoint: token_ep.to_string(),
             registration_endpoint: None,
@@ -982,6 +1068,17 @@ async fn authorize_server_inner(
     };
     let cb_result = cb_result?;
 
+    validate_callback_issuer(
+        server_name,
+        meta.issuer.as_deref(),
+        cb_result.issuer.as_deref(),
+    )?;
+
+    // Serialize a newly authorized grant with refresh dispatch/publication.
+    // Do not hold this lock while waiting for the user's browser callback.
+    let refresh_slot = refresh_slot(server_id);
+    let mut refresh_state = refresh_slot.lock().await;
+
     // 6. Exchange the code for tokens.
     let creds = exchange_code_for_tokens(
         server_name,
@@ -999,12 +1096,14 @@ async fn authorize_server_inner(
     // 7. Persist under the secure-file path + emit success.
     let credential_id = server_id.to_string();
     let stored_creds = creds.clone();
-    ha_core::blocking::run_blocking(move || credentials::save(&credential_id, &stored_creds))
-        .await
-        .map_err(|e| McpError::Auth {
-            server: server_name.to_string(),
-            message: format!("persist credentials: {e}"),
-        })?;
+    let publication =
+        ha_core::blocking::run_blocking(move || credentials::save(&credential_id, &stored_creds))
+            .await
+            .map_err(|e| McpError::Auth {
+                server: server_name.to_string(),
+                message: format!("persist credentials: {e}"),
+            });
+    refresh_state.finish_authorization(publication)?;
     emit_auth_completed(server_id, server_name, true, None);
     ha_core::app_info!(
         "mcp",
@@ -1014,9 +1113,61 @@ async fn authorize_server_inner(
     Ok(creds)
 }
 
-/// Refresh the stored tokens if they're about to expire (60s safety
-/// margin) or already did. Returns the freshest credentials record —
-/// which the caller must re-persist when it differs from the input.
+#[derive(Default)]
+struct RefreshState {
+    failed_refresh_token: Option<String>,
+}
+
+impl RefreshState {
+    fn finish_authorization(&mut self, publication: McpResult<()>) -> McpResult<()> {
+        // A fresh grant can reuse non-rotating token bytes. Only successful
+        // secure publication establishes that new grant; failure keeps the fence.
+        publication?;
+        self.failed_refresh_token = None;
+        Ok(())
+    }
+
+    fn begin_refresh(&mut self, server_name: &str, credentials: &McpCredentials) -> McpResult<()> {
+        if self.failed_refresh_token.is_some()
+            && self.failed_refresh_token == credentials.refresh_token
+        {
+            return Err(McpError::Auth {
+                server: server_name.to_string(),
+                message: "OAuth refresh outcome uncertain; re-authorize required".into(),
+            });
+        }
+        // Fence the credential consumed by the refresh grant, not the access
+        // token: reauthorization may issue the same access token with a new grant.
+        self.failed_refresh_token = credentials.refresh_token.clone();
+        Ok(())
+    }
+}
+
+fn same_refresh_identity(left: &McpCredentials, right: &McpCredentials) -> bool {
+    let method = |credentials: &McpCredentials| {
+        credentials.token_endpoint_auth_method.unwrap_or_else(|| {
+            TokenEndpointAuthMethod::legacy(credentials.client_secret.as_deref())
+        })
+    };
+    left.client_id == right.client_id
+        && left.token_endpoint == right.token_endpoint
+        && left.authorization_endpoint == right.authorization_endpoint
+        && left.client_secret == right.client_secret
+        && method(left) == method(right)
+}
+
+fn refresh_slot(server_id: &str) -> std::sync::Arc<tokio::sync::Mutex<RefreshState>> {
+    type Slots = HashMap<String, std::sync::Arc<tokio::sync::Mutex<RefreshState>>>;
+    static SLOTS: std::sync::LazyLock<std::sync::Mutex<Slots>> =
+        std::sync::LazyLock::new(|| std::sync::Mutex::new(HashMap::new()));
+    let mut slots = SLOTS.lock().unwrap_or_else(|e| e.into_inner());
+    // Retain a failed-token fence for the process lifetime: a provider may have
+    // rotated the token even when its response or local publication failed.
+    slots.entry(server_id.to_string()).or_default().clone()
+}
+
+/// Refresh and conditionally persist expiring credentials under a per-server
+/// lock. Callers must not persist the returned record a second time.
 /// On refresh failure surfaces `McpError::Auth` so the transport layer
 /// can drop the server into `NeedsAuth`.
 pub async fn refresh_if_stale(
@@ -1027,24 +1178,45 @@ pub async fn refresh_if_stale(
     if !current.needs_refresh() {
         return Ok(current.clone());
     }
-    let refreshed = refresh_access_token(server_name, current)
+    let slot = refresh_slot(server_id);
+    let mut state = slot.lock().await;
+    let credential_id = server_id.to_string();
+    let latest = ha_core::blocking::run_blocking(move || credentials::load(&credential_id))
         .await
-        .map_err(|e| {
-            ha_core::app_warn!(
-                "mcp",
-                &format!("{server_name}:oauth"),
-                "refresh_access_token failed: {e}"
-            );
-            e
+        .map_err(|_| McpError::Auth {
+            server: server_name.to_string(),
+            message: "could not reload OAuth credentials".into(),
+        })?
+        .ok_or_else(|| McpError::Auth {
+            server: server_name.to_string(),
+            message: "OAuth credentials removed; re-authorize required".into(),
         })?;
+    if !same_refresh_identity(&latest, current) {
+        return Err(McpError::Auth {
+            server: server_name.to_string(),
+            message: "OAuth identity changed; reconnect required".into(),
+        });
+    }
+    if !latest.needs_refresh() {
+        return Ok(latest);
+    }
+    // Local preflight errors do not consume the grant. Fence immediately before
+    // dispatch and retain it for ambiguous responses/cancellation/publication.
+    let refreshed = refresh_access_token_with_admission(server_name, &latest, || {
+        state.begin_refresh(server_name, &latest)
+    })
+    .await?;
     let credential_id = server_id.to_string();
     let stored_creds = refreshed.clone();
-    ha_core::blocking::run_blocking(move || credentials::save(&credential_id, &stored_creds))
-        .await
-        .map_err(|e| McpError::Auth {
-            server: server_name.to_string(),
-            message: format!("persist refreshed credentials: {e}"),
-        })?;
+    ha_core::blocking::run_blocking(move || {
+        credentials::save_if_current(&credential_id, &latest, &stored_creds)
+    })
+    .await
+    .map_err(|_| McpError::Auth {
+        server: server_name.to_string(),
+        message: "refresh publication rejected; reconnect or re-authorize required".into(),
+    })?;
+    state.failed_refresh_token = None;
     ha_core::app_info!(
         "mcp",
         &format!("{server_name}:oauth"),
@@ -1262,5 +1434,130 @@ mod auth_method_tests {
             TokenEndpointAuthMethod::legacy(None),
             TokenEndpointAuthMethod::None
         );
+    }
+    #[test]
+    fn callback_issuer_is_exact_and_never_inferred_from_callback() {
+        assert!(validate_callback_issuer(
+            "fixture",
+            Some("https://issuer.example"),
+            Some("https://issuer.example")
+        )
+        .is_ok());
+        for received in ["", "https://other.example", "https://issuer.example/"] {
+            assert!(validate_callback_issuer(
+                "fixture",
+                Some("https://issuer.example"),
+                Some(received)
+            )
+            .is_err());
+        }
+        assert!(validate_callback_issuer("fixture", None, Some("https://issuer.example")).is_err());
+        assert!(validate_callback_issuer("fixture", Some("https://issuer.example"), None).is_ok());
+    }
+    #[tokio::test]
+    async fn local_refresh_preflight_failure_never_fences_or_dispatches() {
+        // Numeric public address needs no DNS lookup; the callback also refuses
+        // dispatch if a future regression accidentally admits this fixture.
+        for endpoint in ["file:///synthetic-token", "https://93.184.216.34/token"] {
+            let credentials: McpCredentials = serde_json::from_value(serde_json::json!({
+                "clientId":"client", "accessToken":"synthetic-access",
+                "refreshToken":"synthetic-refresh", "tokenEndpoint":endpoint,
+                "authorizationEndpoint":"https://example.com/authorize",
+                "tokenEndpointAuthMethod":"client_secret_basic"
+            }))
+            .unwrap();
+            let mut state = RefreshState::default();
+            let result = refresh_access_token_with_admission("fixture", &credentials, || {
+                state.begin_refresh("fixture", &credentials)?;
+                Err(McpError::Config("fixture forbids network dispatch".into()))
+            })
+            .await;
+            assert!(result.is_err());
+            assert!(
+                state.failed_refresh_token.is_none(),
+                "local preflight must remain retryable"
+            );
+        }
+    }
+
+    #[test]
+    fn refresh_identity_accepts_legacy_method_normalization_but_rejects_changes() {
+        for secret in [None, Some("synthetic-secret")] {
+            let prior: McpCredentials = serde_json::from_value(serde_json::json!({
+                "clientId":"client", "clientSecret":secret,
+                "accessToken":"synthetic-old", "refreshToken":"synthetic-refresh",
+                "tokenEndpoint":"https://example.com/token",
+                "authorizationEndpoint":"https://example.com/authorize"
+            }))
+            .unwrap();
+            let mut refreshed = prior.clone();
+            refreshed.token_endpoint_auth_method = Some(TokenEndpointAuthMethod::legacy(secret));
+            refreshed.access_token = "synthetic-new".into();
+            assert!(same_refresh_identity(&prior, &refreshed));
+            refreshed.token_endpoint_auth_method = Some(TokenEndpointAuthMethod::ClientSecretBasic);
+            assert!(!same_refresh_identity(&prior, &refreshed));
+            refreshed = prior.clone();
+            refreshed.client_id = "other-client".into();
+            assert!(!same_refresh_identity(&prior, &refreshed));
+        }
+    }
+
+    #[test]
+    fn successful_reauthorization_releases_same_token_only_after_publication() {
+        let credentials: McpCredentials = serde_json::from_value(serde_json::json!({
+            "clientId":"client", "accessToken":"synthetic-access",
+            "refreshToken":"synthetic-non-rotating", "tokenEndpoint":"https://example.com/token",
+            "authorizationEndpoint":"https://example.com/authorize"
+        }))
+        .unwrap();
+        let mut state = RefreshState::default();
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
+        assert!(state
+            .finish_authorization(Err(McpError::Config("synthetic save failure".into())))
+            .is_err());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
+        state.finish_authorization(Ok(())).unwrap();
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
+    }
+
+    #[test]
+    fn failed_refresh_fences_the_consumed_grant_and_allows_reauthorization() {
+        let mut credentials: McpCredentials = serde_json::from_value(serde_json::json!({
+            "clientId":"client", "accessToken":"synthetic-access",
+            "refreshToken":"synthetic-consumed", "tokenEndpoint":"https://example.com/token",
+            "authorizationEndpoint":"https://example.com/authorize"
+        }))
+        .unwrap();
+        let mut state = RefreshState::default();
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
+        credentials.refresh_token = Some("synthetic-reauthorized".into());
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+    }
+
+    #[tokio::test]
+    async fn uncertain_refresh_fence_survives_all_waiters_dropping() {
+        {
+            let slot = refresh_slot("synthetic-uncertain-refresh");
+            slot.lock().await.failed_refresh_token = Some("synthetic-consumed".into());
+        }
+        let slot = refresh_slot("synthetic-uncertain-refresh");
+        assert_eq!(
+            slot.lock().await.failed_refresh_token.as_deref(),
+            Some("synthetic-consumed")
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_slots_serialize_one_server_but_not_distinct_servers() {
+        let first = refresh_slot("synthetic-server-1");
+        let same = refresh_slot("synthetic-server-1");
+        let other = refresh_slot("synthetic-server-2");
+        assert!(std::sync::Arc::ptr_eq(&first, &same));
+        let _guard = first.lock().await;
+        assert!(same.try_lock().is_err());
+        assert!(other.try_lock().is_ok());
     }
 }

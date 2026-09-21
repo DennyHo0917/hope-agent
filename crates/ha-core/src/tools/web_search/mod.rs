@@ -193,16 +193,9 @@ pub(crate) async fn tool_web_search(args: &Value, ctx: &ToolExecContext) -> Resu
             }
             WebSearchProvider::Searxng => {
                 let url = entry.base_url.as_deref().unwrap_or("http://127.0.0.1:8080");
-                // SearXNG instance URL is user-configurable; gate it through the
-                // SSRF policy so a malicious or mis-typed value can't target
-                // cloud metadata endpoints or non-loopback private ranges. `?`
-                // inside an async block so SSRF failure flows into `attempt` and
-                // the outer fallback loop can try the next provider.
-                async {
-                    helpers::check_search_url(url).await?;
-                    searxng::search_searxng(url, query, count, &params, timeout).await
-                }
-                .await
+                // The constructed URL and every redirect are validated before
+                // send; failures remain inside this provider's fallback result.
+                searxng::search_searxng(url, query, count, &params, timeout).await
             }
             WebSearchProvider::Brave => {
                 let key = entry.api_key.as_deref().unwrap_or("");

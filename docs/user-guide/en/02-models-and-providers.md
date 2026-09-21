@@ -42,7 +42,7 @@ Click a template (such as Anthropic, OpenAI, DeepSeek, or Tongyi Qianwen) to ope
 
 After you add a provider, the system automatically sets its first model as the current default model, so you can start chatting right away.
 
-> **DeepSeek vision model**: New direct DeepSeek providers can select **DeepSeek V4 Flash Vision Exp**. It supports image input, a million-token context window, and reasoning. Existing DeepSeek configurations are not rewritten automatically; add model ID `deepseek-v4-flash-vision-exp` manually when needed, or create the connection again.
+> **DeepSeek vision model**: New direct DeepSeek providers can select **DeepSeek V4.1 Flash**. It supports image input, a million-token context window, and reasoning. Existing DeepSeek configurations are not rewritten automatically; add model ID `deepseek-flash` manually when needed, or create the connection again.
 
 ### Custom provider
 

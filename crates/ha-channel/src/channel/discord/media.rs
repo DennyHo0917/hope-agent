@@ -7,9 +7,9 @@ use anyhow::Result;
 use crate::channel::media_helpers::{materialize_to_bytes, MaterializedMedia};
 use ha_core::channel::types::OutboundMedia;
 
-/// Discord 单附件硬上限 25 MiB（部分服务器 boost 后更高，这里按最严的免费档处理）。
+/// Discord 默认单附件上限 20 MiB；未探测目标配额时保守使用默认值。
 /// 超出由 `materialize_to_bytes` 在流式下载阶段直接 bail，dispatcher 走链接兜底。
-pub const MAX_DISCORD_FILE_BYTES: usize = 25 * 1024 * 1024;
+pub const MAX_DISCORD_FILE_BYTES: usize = 20 * 1024 * 1024;
 
 pub async fn build_discord_files(media: &[OutboundMedia]) -> Result<Vec<MaterializedMedia>> {
     let mut out = Vec::with_capacity(media.len());
@@ -77,7 +77,7 @@ mod tests {
     async fn build_discord_files_rejects_oversize_bytes() {
         let over = OutboundMedia {
             media_type: MediaType::Document,
-            data: MediaData::Bytes(vec![0u8; MAX_DISCORD_FILE_BYTES + 1]),
+            data: MediaData::Bytes(vec![0u8; 20 * 1024 * 1024 + 1]),
             caption: None,
         };
         let err = build_discord_files(&[over]).await.unwrap_err();
@@ -88,12 +88,12 @@ mod tests {
     async fn build_discord_files_accepts_under_limit() {
         let ok = OutboundMedia {
             media_type: MediaType::Photo,
-            data: MediaData::Bytes(vec![0u8; 32]),
+            data: MediaData::Bytes(vec![0u8; 20 * 1024 * 1024]),
             caption: None,
         };
         let parts = build_discord_files(&[ok]).await.expect("under limit");
         assert_eq!(parts.len(), 1);
-        assert_eq!(parts[0].bytes.len(), 32);
+        assert_eq!(parts[0].bytes.len(), 20 * 1024 * 1024);
         assert!(
             parts[0].filename.ends_with(".jpg"),
             "filename={}",

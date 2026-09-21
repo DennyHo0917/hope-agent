@@ -67,30 +67,47 @@ pub fn handle_message(
     };
     let params = message.get("params").cloned().unwrap_or(Value::Null);
 
+    let request_protocol = match protocol.for_request(&params) {
+        Ok(protocol) => protocol,
+        Err(error) => return id.map(|id| json!({"jsonrpc": "2.0", "id": id, "error": error})),
+    };
+    if request_protocol.is_modern() && matches!(method, "initialize" | "ping") {
+        return id.map(|id| jsonrpc_error(id, -32601, "method unavailable in modern protocol"));
+    }
+
     match method {
         "server/discover" => id.map(|id| jsonrpc_result(id, discovery_result_value())),
         "initialize" => {
             let version = protocol.negotiate_initialize(&params);
             id.map(|id| jsonrpc_result(id, initialize_result(version)))
         }
-        "ping" => id.map(|id| jsonrpc_result(id, protocol.complete_result(json!({})))),
+        "ping" => id.map(|id| jsonrpc_result(id, request_protocol.complete_result(json!({})))),
         "notifications/initialized" => None,
-        "tools/list" => {
-            id.map(|id| jsonrpc_result(id, protocol.complete_result(tools_list_result(options))))
-        }
+        "tools/list" => id.map(|id| {
+            jsonrpc_result(
+                id,
+                request_protocol.complete_list_result(tools_list_result(options)),
+            )
+        }),
         "tools/call" => id.map(|id| match call_tool(params, options, runtime) {
-            Ok(result) => jsonrpc_result(id, protocol.complete_result(result)),
+            Ok(result) => jsonrpc_result(id, request_protocol.complete_result(result)),
             Err(e) => jsonrpc_result(
                 id,
-                protocol.complete_result(tool_text_result(e.to_string(), true)),
+                request_protocol.complete_result(tool_text_result(e.to_string(), true)),
             ),
         }),
-        "resources/list" => {
-            id.map(|id| jsonrpc_result(id, protocol.complete_result(json!({ "resources": [] }))))
-        }
-        "prompts/list" => {
-            id.map(|id| jsonrpc_result(id, protocol.complete_result(json!({ "prompts": [] }))))
-        }
+        "resources/list" => id.map(|id| {
+            jsonrpc_result(
+                id,
+                request_protocol.complete_list_result(json!({ "resources": [] })),
+            )
+        }),
+        "prompts/list" => id.map(|id| {
+            jsonrpc_result(
+                id,
+                request_protocol.complete_list_result(json!({ "prompts": [] })),
+            )
+        }),
         _ => id.map(|id| jsonrpc_error(id, -32601, format!("method not found: {method}"))),
     }
 }
@@ -331,7 +348,7 @@ mod tests {
             response["result"]["capabilities"]["tools"]["listChanged"],
             false
         );
-        assert_eq!(response["result"]["protocolVersion"], "2026-07-28");
+        assert_eq!(response["result"]["protocolVersion"], "2025-11-25");
     }
 
     #[test]
@@ -403,5 +420,23 @@ mod tests {
             .as_str()
             .unwrap_or_default()
             .contains("disabled"));
+    }
+    #[test]
+    fn modern_list_without_initialize_has_cache_contract() {
+        let request = json!({"jsonrpc":"2.0", "id": 42, "method":"tools/list", "params": {
+            "_meta": {"io.modelcontextprotocol/protocolVersion":"2026-07-28",
+                "io.modelcontextprotocol/clientCapabilities": {}}
+        }});
+        let response = handle_message(
+            request,
+            KnowledgeMcpOptions::default(),
+            None,
+            &mut McpProtocolSession::default(),
+        )
+        .expect("response");
+        assert_eq!(response["result"]["resultType"], "complete");
+        assert_eq!(response["result"]["ttlMs"], 0);
+        assert_eq!(response["result"]["cacheScope"], "private");
+        assert!(response["result"]["tools"].is_array());
     }
 }
