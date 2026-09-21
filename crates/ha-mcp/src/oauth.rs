@@ -1074,6 +1074,11 @@ async fn authorize_server_inner(
         cb_result.issuer.as_deref(),
     )?;
 
+    // Serialize a newly authorized grant with refresh dispatch/publication.
+    // Do not hold this lock while waiting for the user's browser callback.
+    let refresh_slot = refresh_slot(server_id);
+    let mut refresh_state = refresh_slot.lock().await;
+
     // 6. Exchange the code for tokens.
     let creds = exchange_code_for_tokens(
         server_name,
@@ -1091,12 +1096,14 @@ async fn authorize_server_inner(
     // 7. Persist under the secure-file path + emit success.
     let credential_id = server_id.to_string();
     let stored_creds = creds.clone();
-    ha_core::blocking::run_blocking(move || credentials::save(&credential_id, &stored_creds))
-        .await
-        .map_err(|e| McpError::Auth {
-            server: server_name.to_string(),
-            message: format!("persist credentials: {e}"),
-        })?;
+    let publication =
+        ha_core::blocking::run_blocking(move || credentials::save(&credential_id, &stored_creds))
+            .await
+            .map_err(|e| McpError::Auth {
+                server: server_name.to_string(),
+                message: format!("persist credentials: {e}"),
+            });
+    refresh_state.finish_authorization(publication)?;
     emit_auth_completed(server_id, server_name, true, None);
     ha_core::app_info!(
         "mcp",
@@ -1112,6 +1119,14 @@ struct RefreshState {
 }
 
 impl RefreshState {
+    fn finish_authorization(&mut self, publication: McpResult<()>) -> McpResult<()> {
+        // A fresh grant can reuse non-rotating token bytes. Only successful
+        // secure publication establishes that new grant; failure keeps the fence.
+        publication?;
+        self.failed_refresh_token = None;
+        Ok(())
+    }
+
     fn begin_refresh(&mut self, server_name: &str, credentials: &McpCredentials) -> McpResult<()> {
         if self.failed_refresh_token.is_some()
             && self.failed_refresh_token == credentials.refresh_token
@@ -1485,6 +1500,26 @@ mod auth_method_tests {
             refreshed.client_id = "other-client".into();
             assert!(!same_refresh_identity(&prior, &refreshed));
         }
+    }
+
+    #[test]
+    fn successful_reauthorization_releases_same_token_only_after_publication() {
+        let credentials: McpCredentials = serde_json::from_value(serde_json::json!({
+            "clientId":"client", "accessToken":"synthetic-access",
+            "refreshToken":"synthetic-non-rotating", "tokenEndpoint":"https://example.com/token",
+            "authorizationEndpoint":"https://example.com/authorize"
+        }))
+        .unwrap();
+        let mut state = RefreshState::default();
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
+        assert!(state
+            .finish_authorization(Err(McpError::Config("synthetic save failure".into())))
+            .is_err());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
+        state.finish_authorization(Ok(())).unwrap();
+        assert!(state.begin_refresh("fixture", &credentials).is_ok());
+        assert!(state.begin_refresh("fixture", &credentials).is_err());
     }
 
     #[test]
