@@ -44,6 +44,11 @@ const BLOCKED_UPDATE_CATEGORIES: &[&str] = &[
     // legacy `cfg.embedding` write sink was a silent no-op. Read is repointed at
     // the resolved config (redacted); writes go through Settings → Memory.
     "embedding",
+    // Tool-result disk spilling is intentionally unavailable while persisted
+    // tool output cannot satisfy the workspace/security boundary. Keep the
+    // legacy value readable for compatibility, but do not let conversational
+    // Settings claim that changing it has any effect.
+    "tool_result_disk_threshold",
 ];
 
 /// Credential-bearing fields inside otherwise writable categories. The user
@@ -95,7 +100,6 @@ const SETTINGS_CATEGORY_RISKS: &[(&str, &str)] = &[
     ("deferred_tools", "medium"),
     ("async_tools", "medium"),
     ("approval", "medium"),
-    ("tool_result_disk_threshold", "medium"),
     ("ask_user_question_timeout", "medium"),
     ("plan", "medium"),
     ("issue_reporting", "medium"),
@@ -145,6 +149,7 @@ const SETTINGS_CATEGORY_RISKS: &[(&str, &str)] = &[
     ("stt_providers", "read_only"),
     ("active_stt_model", "read_only"),
     ("stt_fallback_models", "read_only"),
+    ("tool_result_disk_threshold", "read_only"),
 ];
 
 pub(crate) fn get_settings_categories() -> Vec<&'static str> {
@@ -1418,17 +1423,6 @@ fn apply_app_config_update(
                 }
             }
         }
-        "tool_result_disk_threshold" => {
-            if let Some(v) = values.get("toolResultDiskThreshold") {
-                if v.is_null() {
-                    store.tool_result_disk_threshold = None;
-                } else if let Some(n) = v.as_u64() {
-                    store.tool_result_disk_threshold = Some(n as usize);
-                } else {
-                    bail!("toolResultDiskThreshold must be a non-negative integer or null");
-                }
-            }
-        }
         "ask_user_question_timeout" => {
             if let Some(v) = values
                 .get("askUserQuestionTimeoutEnabled")
@@ -1866,6 +1860,7 @@ mod tests {
             "server",
             "stt_fallback_models",
             "stt_providers",
+            "tool_result_disk_threshold",
         ];
         // Golden read_only set: adding/removing one fails here and forces review —
         // read_only is the exemption from the GUI-only credential rule.
@@ -1892,6 +1887,7 @@ mod tests {
             "stt_providers",
             "active_stt_model",
             "stt_fallback_models",
+            "tool_result_disk_threshold",
         ] {
             assert!(
                 BLOCKED_UPDATE_CATEGORIES.contains(&cat),
