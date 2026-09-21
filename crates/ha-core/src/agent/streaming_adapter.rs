@@ -127,6 +127,9 @@ pub struct RoundRequest<'a> {
     pub vision_bridge_available: bool,
     /// Resolved reasoning effort for this round (live or fallback).
     pub reasoning_effort: Option<&'a str>,
+    /// True only when the caller explicitly disabled reasoning. Kept separate
+    /// because the normalized effort also uses `None` for an unset value.
+    pub reasoning_disabled: bool,
     /// Sampling temperature override (None = API default).
     pub temperature: Option<f64>,
     /// Max output tokens for this round.
@@ -571,6 +574,7 @@ mod dynamic_context_contract_tests {
             history_for_api: &empty,
             vision_bridge_available: false,
             reasoning_effort: None,
+            reasoning_disabled: false,
             temperature: None,
             max_tokens: 100,
             is_final_round: false,

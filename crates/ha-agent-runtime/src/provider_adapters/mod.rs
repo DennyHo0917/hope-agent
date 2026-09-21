@@ -36,6 +36,7 @@ mod test_support {
             history_for_api: history,
             vision_bridge_available: false,
             reasoning_effort: None,
+            reasoning_disabled: false,
             temperature: Some(0.2),
             max_tokens: 4096,
             is_final_round: false,

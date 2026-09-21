@@ -181,14 +181,28 @@ pub fn get_codex_models() -> Vec<CodexModel> {
 /// user-side toggle (UI picker, `/thinking` slash, channel command) applies to
 /// the very next API request instead of only to the next user message.
 pub async fn live_reasoning_effort(fallback: Option<&str>) -> Option<String> {
+    live_reasoning_selection(fallback).await.0
+}
+
+/// Read the live effort while preserving whether the user explicitly selected
+/// `none`. The effort remains normalized for provider request construction,
+/// while the boolean lets response adapters discard unsolicited reasoning.
+pub async fn live_reasoning_selection(fallback: Option<&str>) -> (Option<String>, bool) {
     if let Some(cell) = crate::globals::get_reasoning_effort_cell() {
-        let eff = cell.lock().await.clone();
-        if eff == "none" {
-            return None;
-        }
-        return Some(eff);
+        return normalize_live_reasoning_selection(cell.lock().await.clone());
     }
-    fallback.map(|s| s.to_string())
+    (
+        fallback.map(|s| s.to_string()),
+        matches!(fallback, Some("none")),
+    )
+}
+
+fn normalize_live_reasoning_selection(effort: String) -> (Option<String>, bool) {
+    if effort == "none" {
+        (None, true)
+    } else {
+        (Some(effort), false)
+    }
 }
 
 pub const VALID_REASONING_EFFORTS: [&str; 7] =
@@ -1276,6 +1290,18 @@ mod build_api_url_tests {
 mod provider_effort_tests {
     use super::*;
     use crate::agent::LlmProvider;
+
+    #[test]
+    fn live_none_keeps_an_explicit_disabled_signal_after_normalization() {
+        assert_eq!(
+            normalize_live_reasoning_selection("none".to_string()),
+            (None, true)
+        );
+        assert_eq!(
+            normalize_live_reasoning_selection("medium".to_string()),
+            (Some("medium".to_string()), false)
+        );
+    }
 
     #[test]
     fn provider_round_effort_does_not_preclamp_direct_astra_max() {

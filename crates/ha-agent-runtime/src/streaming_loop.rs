@@ -2898,7 +2898,8 @@ impl RuntimeAgentExt for AssistantAgent {
                     None => guidance,
                 });
             }
-            let effort_requested = self.effective_reasoning_effort(reasoning_effort).await;
+            let (effort_requested, reasoning_disabled) =
+                self.effective_reasoning_selection(reasoning_effort).await;
             let effort_effective = super::config::provider_reasoning_effort(
                 self.runtime_provider(),
                 effort_requested.as_deref(),
@@ -3108,6 +3109,7 @@ impl RuntimeAgentExt for AssistantAgent {
                 history_for_api: &[],
                 vision_bridge_available: vision_bridge.is_some(),
                 reasoning_effort: effort_effective.as_deref(),
+                reasoning_disabled,
                 temperature: self.runtime_temperature(),
                 max_tokens: eval_max_tokens,
                 is_final_round,

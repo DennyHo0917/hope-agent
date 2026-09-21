@@ -3656,10 +3656,23 @@ impl AssistantAgent {
     /// aren't silently overridden by the UI picker.
     #[doc(hidden)]
     pub async fn effective_reasoning_effort(&self, fallback: Option<&str>) -> Option<String> {
+        self.effective_reasoning_selection(fallback).await.0
+    }
+
+    /// Resolve the round effort together with an explicit disabled bit so
+    /// provider response parsing does not confuse `none` with an unset value.
+    #[doc(hidden)]
+    pub async fn effective_reasoning_selection(
+        &self,
+        fallback: Option<&str>,
+    ) -> (Option<String>, bool) {
         if self.follow_global_reasoning_effort {
-            config::live_reasoning_effort(fallback).await
+            config::live_reasoning_selection(fallback).await
         } else {
-            fallback.map(|s| s.to_string())
+            (
+                fallback.map(|s| s.to_string()),
+                matches!(fallback, Some("none")),
+            )
         }
     }
 

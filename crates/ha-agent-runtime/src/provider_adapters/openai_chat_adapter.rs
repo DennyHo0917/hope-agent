@@ -721,7 +721,7 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
             .map(|pc| pc.model_supports_vision(self.model))
             .unwrap_or(true)
             && !self.vision_runtime_disabled();
-        self.prepare_chat_variant(req, false, model_supports_vision)
+        self.prepare_chat_variant(req, req.reasoning_disabled, model_supports_vision)
     }
 
     fn reprepare_round_request(
@@ -845,14 +845,9 @@ impl<'a> StreamingChatAdapter for OpenAIChatStreamingAdapter<'a> {
             .into());
         }
 
-        let (text, tool_calls, mut usage, thinking_text, ttft_ms) = parse_chat_completions_sse(
-            resp,
-            request_start,
-            prepared.reasoning_effort.as_deref(),
-            cancel,
-            on_delta,
-        )
-        .await?;
+        let (text, tool_calls, mut usage, thinking_text, ttft_ms) =
+            parse_chat_completions_sse(resp, request_start, thinking_disabled, cancel, on_delta)
+                .await?;
         if cancel.load(Ordering::SeqCst) {
             return Ok(super::cancel::cancelled_round_outcome());
         }
@@ -1070,7 +1065,7 @@ fn decode_chat_completion_sse_data(data: &str) -> Result<Value> {
 pub(crate) async fn parse_chat_completions_sse(
     resp: reqwest::Response,
     request_start: std::time::Instant,
-    reasoning_effort: Option<&str>,
+    thinking_disabled: bool,
     cancel: &Arc<AtomicBool>,
     on_delta: &(dyn for<'s> Fn(&'s str) + Send + Sync),
 ) -> Result<(
@@ -1206,7 +1201,7 @@ pub(crate) async fn parse_chat_completions_sse(
                         if let Some(reasoning) =
                             delta.get("reasoning_content").and_then(|c| c.as_str())
                         {
-                            if !reasoning.is_empty() && reasoning_effort != Some("none") {
+                            if !reasoning.is_empty() && !thinking_disabled {
                                 if first_token_time.is_none() {
                                     first_token_time =
                                         Some(request_start.elapsed().as_millis() as u64);
@@ -1220,7 +1215,7 @@ pub(crate) async fn parse_chat_completions_sse(
                         // thinking via <think> tags. With effort=none, discard entirely.
                         if let Some(content) = delta.get("content").and_then(|c| c.as_str()) {
                             let (text_part, think_part) = think_filter.process(content);
-                            if !think_part.is_empty() && reasoning_effort != Some("none") {
+                            if !think_part.is_empty() && !thinking_disabled {
                                 emit_thinking_delta(&on_delta, &think_part);
                                 collected_thinking.push_str(&think_part);
                             }
@@ -1453,7 +1448,9 @@ mod tests {
         take_next_chat_sse_event_block, validate_chat_sse_eof_tail, OpenAIChatStreamingAdapter,
     };
     use crate::agent::api_types::FunctionCallItem;
-    use crate::agent::streaming_adapter::{RoundRequest, StreamingChatAdapter};
+    use crate::agent::streaming_adapter::{
+        PreparedRequestVariant, RoundRequest, StreamingChatAdapter,
+    };
     use crate::provider::ThinkingStyle;
     use std::collections::HashMap;
     use std::sync::{atomic::AtomicBool, Arc};
@@ -1659,7 +1656,7 @@ mod tests {
 
     #[tokio::test]
     async fn disabled_thinking_drops_native_and_tagged_reasoning_from_chat_history() {
-        async fn parse_fixture(effort: &str) -> (String, String) {
+        async fn parse_fixture(thinking_disabled: bool) -> (String, String) {
             let native = serde_json::json!({
                 "choices": [{
                     "delta": {"reasoning_content": "native reasoning"},
@@ -1678,7 +1675,7 @@ mod tests {
             let (text, _, _, thinking, _) = super::parse_chat_completions_sse(
                 response,
                 std::time::Instant::now(),
-                Some(effort),
+                thinking_disabled,
                 &cancel,
                 &|_| {},
             )
@@ -1687,13 +1684,41 @@ mod tests {
             (text, thinking)
         }
 
-        let disabled = parse_fixture("none").await;
+        let disabled = parse_fixture(true).await;
         assert_eq!(disabled.0, "visible answer");
         assert!(disabled.1.is_empty());
 
-        let enabled = parse_fixture("medium").await;
+        let enabled = parse_fixture(false).await;
         assert_eq!(enabled.0, "visible answer");
         assert_eq!(enabled.1, "native reasoningtagged reasoning");
+    }
+
+    #[test]
+    fn explicit_disabled_signal_survives_openai_chat_request_preparation() {
+        let history = Vec::new();
+        let mut req = super::super::test_support::round_request(&history);
+        req.reasoning_effort = None;
+        req.reasoning_disabled = true;
+        let thinking_style = ThinkingStyle::Openai;
+        let adapter = OpenAIChatStreamingAdapter {
+            api_key: "synthetic",
+            base_url: "http://127.0.0.1:8080",
+            model: "compatible-model",
+            thinking_style: &thinking_style,
+            provider_config: None,
+            vision_runtime_disabled: Arc::new(AtomicBool::new(false)),
+            vision_notice_emitted: Arc::new(AtomicBool::new(false)),
+            prepared_history_had_images: AtomicBool::new(false),
+        };
+
+        let prepared = adapter.prepare_round_request(&req).unwrap();
+        assert!(matches!(
+            prepared.variant,
+            PreparedRequestVariant::OpenAIChat {
+                thinking_disabled: true,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -1786,6 +1811,7 @@ mod tests {
             history_for_api: &history,
             vision_bridge_available: false,
             reasoning_effort: None,
+            reasoning_disabled: false,
             temperature: None,
             max_tokens: 100,
             is_final_round: false,
@@ -1888,6 +1914,7 @@ mod tests {
             history_for_api: &history,
             vision_bridge_available: false,
             reasoning_effort: None,
+            reasoning_disabled: false,
             temperature: None,
             max_tokens: 100,
             is_final_round: false,
