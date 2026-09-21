@@ -45,11 +45,17 @@ mod test_support {
 
     /// Loopback-only response fixture; no credentials or real provider calls.
     pub async fn sse_response(events: &[Value]) -> reqwest::Response {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let body: String = events
             .iter()
             .map(|event| format!("data: {event}\n\n"))
             .collect();
+        raw_sse_response(body).await
+    }
+
+    /// Loopback-only raw SSE response fixture for protocol-specific terminal
+    /// markers such as OpenAI Chat's non-JSON `[DONE]`.
+    pub async fn raw_sse_response(body: String) -> reqwest::Response {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let server = tokio::spawn(async move {

@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "저장된 백업에서 설정 복원",
     "toolRestoreSettingsBackupName": "설정 백업 복원",
     "toolResultDiskThreshold": "도구 결과 디스크 영구 저장",
-    "toolResultDiskThresholdDesc": "이 크기를 초과하는 결과는 디스크에 저장되며, 컨텍스트에는 미리보기만 유지됩니다. 0 으로 설정하면 비활성화",
+    "toolResultDiskThresholdDesc": "일시적으로 사용할 수 없음: 텍스트 결과는 현재 제한된 컨텍스트 미리보기만 유지하며 이 임계값은 호환성을 위해 남아 있습니다",
     "toolSaveMemoryDesc": "장기 기억에 정보 저장",
     "toolSaveMemoryName": "기억 저장",
     "toolSendAttachmentDesc": "생성한 파일을 다운로드 가능한 카드로 데스크톱 UI에 푸시",

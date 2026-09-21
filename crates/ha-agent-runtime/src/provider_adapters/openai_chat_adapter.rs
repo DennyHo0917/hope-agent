@@ -1206,7 +1206,7 @@ pub(crate) async fn parse_chat_completions_sse(
                         if let Some(reasoning) =
                             delta.get("reasoning_content").and_then(|c| c.as_str())
                         {
-                            if !reasoning.is_empty() {
+                            if !reasoning.is_empty() && reasoning_effort != Some("none") {
                                 if first_token_time.is_none() {
                                     first_token_time =
                                         Some(request_start.elapsed().as_millis() as u64);
@@ -1655,6 +1655,45 @@ mod tests {
         assert_eq!(buffer, b"rest");
         assert!(decode_chat_completion_sse_data(r#"{"choices":[]}"#).is_ok());
         assert!(decode_chat_completion_sse_data("{").is_err());
+    }
+
+    #[tokio::test]
+    async fn disabled_thinking_drops_native_and_tagged_reasoning_from_chat_history() {
+        async fn parse_fixture(effort: &str) -> (String, String) {
+            let native = serde_json::json!({
+                "choices": [{
+                    "delta": {"reasoning_content": "native reasoning"},
+                    "finish_reason": null
+                }]
+            });
+            let tagged = serde_json::json!({
+                "choices": [{
+                    "delta": {"content": "<think>tagged reasoning</think>visible answer"},
+                    "finish_reason": "stop"
+                }]
+            });
+            let body = format!("data: {native}\n\ndata: {tagged}\n\ndata: [DONE]\n\n");
+            let response = super::super::test_support::raw_sse_response(body).await;
+            let cancel = Arc::new(AtomicBool::new(false));
+            let (text, _, _, thinking, _) = super::parse_chat_completions_sse(
+                response,
+                std::time::Instant::now(),
+                Some(effort),
+                &cancel,
+                &|_| {},
+            )
+            .await
+            .unwrap();
+            (text, thinking)
+        }
+
+        let disabled = parse_fixture("none").await;
+        assert_eq!(disabled.0, "visible answer");
+        assert!(disabled.1.is_empty());
+
+        let enabled = parse_fixture("medium").await;
+        assert_eq!(enabled.0, "visible answer");
+        assert_eq!(enabled.1, "native reasoningtagged reasoning");
     }
 
     #[test]

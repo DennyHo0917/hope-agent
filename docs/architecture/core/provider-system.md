@@ -505,11 +505,13 @@ flowchart LR
 
 - 支持 `<think>` / `<thinking>` / `<thought>`（大小写不敏感）
 - 正确处理跨 chunk 边界被切断的部分标签
-- 当 `reasoning_effort == "none"` 时直接丢弃 thinking 内容
+- 当 `reasoning_effort == "none"` 时，在接收边界同时丢弃标签内 thinking 与
+  OpenAI 兼容流的原生 `reasoning_content`；二者都不发界面事件，也不进入
+  `conversation_history`
 
 ### 5.3 多轮 Thinking 回传
 
-每个 Provider 都把 thinking 内容保存进 `conversation_history`，好让下一轮模型看得到自己上一轮的推理。三家的存储形态各不相同：
+启用思考时，各 Provider 把 thinking 内容保存进 `conversation_history`，好让下一轮模型看得到自己上一轮的推理。关闭思考时 OpenAI Chat 在接收边界丢弃服务端仍返回的 thinking。三家的存储形态各不相同：
 
 ```mermaid
 graph TB

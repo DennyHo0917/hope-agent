@@ -469,6 +469,7 @@ export default function ToolGeneralPanel() {
               <DeferredNumberInput
                 min={0}
                 step={10}
+                disabled
                 value={diskThreshold}
                 onValueCommit={(value) => {
                   const clamped = Math.max(0, Math.round(value))

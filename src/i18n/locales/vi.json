@@ -7190,7 +7190,7 @@
     "toolRestoreSettingsBackupDesc": "Khôi phục cài đặt từ một bản sao lưu đã lưu",
     "toolRestoreSettingsBackupName": "Khôi Phục Sao Lưu Cài Đặt",
     "toolResultDiskThreshold": "Lưu trữ kết quả công cụ trên đĩa",
-    "toolResultDiskThresholdDesc": "Kết quả vượt quá kích thước này sẽ được lưu vào đĩa, chỉ giữ bản xem trước trong ngữ cảnh. Đặt 0 để tắt",
+    "toolResultDiskThresholdDesc": "Tạm thời chưa khả dụng: kết quả văn bản hiện chỉ giữ bản xem trước có giới hạn; ngưỡng này được giữ để tương thích",
     "toolSaveMemoryDesc": "Lưu thông tin vào bộ nhớ dài hạn",
     "toolSaveMemoryName": "Lưu bộ nhớ",
     "toolSendAttachmentDesc": "Đẩy file đã tạo dưới dạng thẻ tải xuống đến giao diện desktop",
