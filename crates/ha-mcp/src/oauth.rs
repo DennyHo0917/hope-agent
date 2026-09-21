@@ -1128,6 +1128,19 @@ impl RefreshState {
     }
 }
 
+fn same_refresh_identity(left: &McpCredentials, right: &McpCredentials) -> bool {
+    let method = |credentials: &McpCredentials| {
+        credentials.token_endpoint_auth_method.unwrap_or_else(|| {
+            TokenEndpointAuthMethod::legacy(credentials.client_secret.as_deref())
+        })
+    };
+    left.client_id == right.client_id
+        && left.token_endpoint == right.token_endpoint
+        && left.authorization_endpoint == right.authorization_endpoint
+        && left.client_secret == right.client_secret
+        && method(left) == method(right)
+}
+
 fn refresh_slot(server_id: &str) -> std::sync::Arc<tokio::sync::Mutex<RefreshState>> {
     type Slots = HashMap<String, std::sync::Arc<tokio::sync::Mutex<RefreshState>>>;
     static SLOTS: std::sync::LazyLock<std::sync::Mutex<Slots>> =
@@ -1163,12 +1176,7 @@ pub async fn refresh_if_stale(
             server: server_name.to_string(),
             message: "OAuth credentials removed; re-authorize required".into(),
         })?;
-    if latest.client_id != current.client_id
-        || latest.token_endpoint != current.token_endpoint
-        || latest.authorization_endpoint != current.authorization_endpoint
-        || latest.client_secret != current.client_secret
-        || latest.token_endpoint_auth_method != current.token_endpoint_auth_method
-    {
+    if !same_refresh_identity(&latest, current) {
         return Err(McpError::Auth {
             server: server_name.to_string(),
             message: "OAuth identity changed; reconnect required".into(),
@@ -1454,6 +1462,28 @@ mod auth_method_tests {
                 state.failed_refresh_token.is_none(),
                 "local preflight must remain retryable"
             );
+        }
+    }
+
+    #[test]
+    fn refresh_identity_accepts_legacy_method_normalization_but_rejects_changes() {
+        for secret in [None, Some("synthetic-secret")] {
+            let prior: McpCredentials = serde_json::from_value(serde_json::json!({
+                "clientId":"client", "clientSecret":secret,
+                "accessToken":"synthetic-old", "refreshToken":"synthetic-refresh",
+                "tokenEndpoint":"https://example.com/token",
+                "authorizationEndpoint":"https://example.com/authorize"
+            }))
+            .unwrap();
+            let mut refreshed = prior.clone();
+            refreshed.token_endpoint_auth_method = Some(TokenEndpointAuthMethod::legacy(secret));
+            refreshed.access_token = "synthetic-new".into();
+            assert!(same_refresh_identity(&prior, &refreshed));
+            refreshed.token_endpoint_auth_method = Some(TokenEndpointAuthMethod::ClientSecretBasic);
+            assert!(!same_refresh_identity(&prior, &refreshed));
+            refreshed = prior.clone();
+            refreshed.client_id = "other-client".into();
+            assert!(!same_refresh_identity(&prior, &refreshed));
         }
     }
 
