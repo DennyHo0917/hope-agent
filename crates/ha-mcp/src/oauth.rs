@@ -467,6 +467,14 @@ pub async fn refresh_access_token(
     server_name: &str,
     prior: &McpCredentials,
 ) -> McpResult<McpCredentials> {
+    refresh_access_token_with_admission(server_name, prior, || Ok(())).await
+}
+
+async fn refresh_access_token_with_admission(
+    server_name: &str,
+    prior: &McpCredentials,
+    before_dispatch: impl FnOnce() -> McpResult<()>,
+) -> McpResult<McpCredentials> {
     let refresh = prior
         .refresh_token
         .as_deref()
@@ -483,15 +491,18 @@ pub async fn refresh_access_token(
     let auth_method = prior
         .token_endpoint_auth_method
         .unwrap_or_else(|| TokenEndpointAuthMethod::legacy(prior.client_secret.as_deref()));
-    let token = post_token_form(
+    let prepared = prepare_token_form(
         server_name,
         &prior.token_endpoint,
         &form,
         &prior.client_id,
         prior.client_secret.as_deref(),
         auth_method,
-    )
-    .await?;
+    )?;
+    // URL admission, client/auth construction and RequestBuilder validation
+    // are definitely local. Only fence once all have succeeded.
+    before_dispatch()?;
+    let token = dispatch_token_request(server_name, prepared).await?;
     let mut creds = creds_from_token(
         &prior.client_id,
         prior.client_secret.as_deref(),
@@ -560,6 +571,30 @@ async fn post_token_form(
     client_secret: Option<&str>,
     auth_method: TokenEndpointAuthMethod,
 ) -> McpResult<TokenFields> {
+    let prepared = prepare_token_form(
+        server_name,
+        token_endpoint,
+        form,
+        client_id,
+        client_secret,
+        auth_method,
+    )?;
+    dispatch_token_request(server_name, prepared).await
+}
+
+struct PreparedTokenRequest {
+    client: reqwest::Client,
+    request: reqwest::Request,
+}
+
+fn prepare_token_form(
+    server_name: &str,
+    token_endpoint: &str,
+    form: &[(&str, &str)],
+    client_id: &str,
+    client_secret: Option<&str>,
+    auth_method: TokenEndpointAuthMethod,
+) -> McpResult<PreparedTokenRequest> {
     let client = http_client()?;
     let request = token_request(
         &client,
@@ -570,10 +605,25 @@ async fn post_token_form(
         client_secret,
         auth_method,
     )?;
-    let resp = request.send().await.map_err(|e| McpError::Transport {
+    let request = request.build().map_err(|_| McpError::Transport {
         server: server_name.to_string(),
-        source: format!("token POST: {e}"),
+        source: "could not build OAuth token request".into(),
     })?;
+    Ok(PreparedTokenRequest { client, request })
+}
+
+async fn dispatch_token_request(
+    server_name: &str,
+    prepared: PreparedTokenRequest,
+) -> McpResult<TokenFields> {
+    let resp = prepared
+        .client
+        .execute(prepared.request)
+        .await
+        .map_err(|e| McpError::Transport {
+            server: server_name.to_string(),
+            source: format!("token POST: {}", e.without_url()),
+        })?;
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
     if !status.is_success() {
@@ -1127,10 +1177,12 @@ pub async fn refresh_if_stale(
     if !latest.needs_refresh() {
         return Ok(latest);
     }
-    // Set before dispatch so cancellation, response loss and failed persistence
-    // all fail closed rather than retrying a possibly consumed refresh token.
-    state.begin_refresh(server_name, &latest)?;
-    let refreshed = refresh_access_token(server_name, &latest).await?;
+    // Local preflight errors do not consume the grant. Fence immediately before
+    // dispatch and retain it for ambiguous responses/cancellation/publication.
+    let refreshed = refresh_access_token_with_admission(server_name, &latest, || {
+        state.begin_refresh(server_name, &latest)
+    })
+    .await?;
     let credential_id = server_id.to_string();
     let stored_creds = refreshed.clone();
     ha_core::blocking::run_blocking(move || {
@@ -1379,6 +1431,32 @@ mod auth_method_tests {
         assert!(validate_callback_issuer("fixture", None, Some("https://issuer.example")).is_err());
         assert!(validate_callback_issuer("fixture", Some("https://issuer.example"), None).is_ok());
     }
+    #[tokio::test]
+    async fn local_refresh_preflight_failure_never_fences_or_dispatches() {
+        // Numeric public address needs no DNS lookup; the callback also refuses
+        // dispatch if a future regression accidentally admits this fixture.
+        for endpoint in ["file:///synthetic-token", "https://93.184.216.34/token"] {
+            let credentials: McpCredentials = serde_json::from_value(serde_json::json!({
+                "clientId":"client", "accessToken":"synthetic-access",
+                "refreshToken":"synthetic-refresh", "tokenEndpoint":endpoint,
+                "authorizationEndpoint":"https://example.com/authorize",
+                "tokenEndpointAuthMethod":"client_secret_basic"
+            }))
+            .unwrap();
+            let mut state = RefreshState::default();
+            let result = refresh_access_token_with_admission("fixture", &credentials, || {
+                state.begin_refresh("fixture", &credentials)?;
+                Err(McpError::Config("fixture forbids network dispatch".into()))
+            })
+            .await;
+            assert!(result.is_err());
+            assert!(
+                state.failed_refresh_token.is_none(),
+                "local preflight must remain retryable"
+            );
+        }
+    }
+
     #[test]
     fn failed_refresh_fences_the_consumed_grant_and_allows_reauthorization() {
         let mut credentials: McpCredentials = serde_json::from_value(serde_json::json!({
