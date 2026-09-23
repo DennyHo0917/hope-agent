@@ -704,7 +704,9 @@ pub(crate) async fn tool_sessions_send(
                     target_session_id_owned
                 )));
             }
-            if !session.is_regular_chat() {
+            if !session.is_regular_chat()
+                || db.is_codex_imported_session(&target_session_id_owned)?
+            {
                 return Ok(Err(format!(
                     "Refusing to send to non-regular session '{}'.",
                     target_session_id_owned
@@ -960,7 +962,9 @@ async fn start_proactive_turn(
             .ok_or_else(|| {
                 anyhow::anyhow!("Target session '{}' no longer exists", target_session_id)
             })?;
-        if !live.is_regular_chat() {
+        if !live.is_regular_chat()
+            || db_for_live_check.is_codex_imported_session(&target_session_id)?
+        {
             anyhow::bail!(
                 "Target session '{}' is no longer a regular session",
                 target_session_id

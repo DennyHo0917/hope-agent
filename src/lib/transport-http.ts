@@ -389,6 +389,7 @@ const COMMAND_MAP: Record<string, EndpointDef> = {
   },
 
   // -- Sessions --
+  import_local_codex_sessions_cmd: { method: "POST", path: "/api/sessions/import-codex-local" },
   list_sessions_cmd: { method: "GET", path: "/api/sessions" },
   list_archived_sessions_cmd: { method: "GET", path: "/api/sessions/archived" },
   create_session_cmd: { method: "POST", path: "/api/sessions" },

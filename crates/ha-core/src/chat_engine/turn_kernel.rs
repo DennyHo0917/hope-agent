@@ -842,6 +842,21 @@ impl TurnKernel {
             FailedInteractiveAdmissionCleanup::capture(&submission.params, admission)
         });
         let result: Result<AdmittedTurn, TurnFailure> = async {
+            let session_id = submission.params.session_id.clone();
+            let imported = submission
+                .params
+                .session_db
+                .run(move |db| db.is_codex_imported_session(&session_id))
+                .await
+                .map_err(|error| {
+                    TurnFailure::new(TurnFailureKind::Infrastructure, error.to_string())
+                })?;
+            if imported {
+                return Err(TurnFailure::new(
+                    TurnFailureKind::Terminal,
+                    "Imported Codex conversations are read-only",
+                ));
+            }
             admit_model_selection(
                 &mut submission.params,
                 submission.model_selection.take().ok_or_else(|| {

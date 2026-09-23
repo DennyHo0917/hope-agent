@@ -31,6 +31,7 @@ import {
   Ghost,
   CircleAlert,
   Download,
+  FileDown,
   Pin,
   PinOff,
 } from "lucide-react"
@@ -323,6 +324,13 @@ export default function SessionItem({
                   </span>
                 </IconTip>
               )}
+              {session.origin?.kind === "codex" && (
+                <IconTip label="Codex">
+                  <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary/10 text-primary">
+                    <FileDown className="h-2.5 w-2.5" />
+                  </span>
+                </IconTip>
+              )}
               {!isActive && session.hasError && (
                 <IconTip label={t("chat.sessionFailed")}>
                   <span className="inline-flex items-center justify-center shrink-0 w-4 h-4 rounded bg-red-500/15 text-red-500">
@@ -574,7 +582,11 @@ export default function SessionItem({
             a regular chat (not a sub-agent / cron / channel session, which
             shouldn't be arbitrarily relocated). Channel sessions are filtered
             here because their lifecycle is tied to the IM conversation. */}
-        {onMoveToProject && !session.channelInfo && !session.parentSessionId && !session.isCron && (
+        {onMoveToProject &&
+          session.origin?.kind !== "codex" &&
+          !session.channelInfo &&
+          !session.parentSessionId &&
+          !session.isCron && (
             <>
               <ContextMenuSeparator />
               <ContextMenuSub>

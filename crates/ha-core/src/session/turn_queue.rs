@@ -772,6 +772,8 @@ impl SessionDB {
                     SELECT 1 FROM sessions
                     WHERE id = ?1 AND is_cron = 0 AND parent_session_id IS NULL
                       AND incognito = 0 AND kind = 'regular' AND archived_at IS NULL
+                      AND NOT EXISTS (SELECT 1 FROM session_import_sources
+                                      WHERE session_id = sessions.id)
                  )",
                 params![input.session_id],
                 |row| row.get(0),

@@ -1142,6 +1142,24 @@ impl SessionDB {
         if !has_origin_json {
             conn.execute_batch("ALTER TABLE sessions ADD COLUMN origin_json TEXT;")?;
         }
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS session_import_sources (
+                provider TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                session_id TEXT NOT NULL UNIQUE REFERENCES sessions(id) ON DELETE CASCADE,
+                content_hash TEXT NOT NULL,
+                imported_at TEXT NOT NULL,
+                PRIMARY KEY (provider, source_id)
+            );
+            CREATE TRIGGER IF NOT EXISTS block_imported_session_message_insert
+            BEFORE INSERT ON messages
+            WHEN EXISTS (SELECT 1 FROM session_import_sources
+                         WHERE session_id = NEW.session_id)
+                 AND COALESCE(NEW.source, '') != 'codex_import'
+            BEGIN
+                SELECT RAISE(ABORT, 'imported session is read-only');
+            END;",
+        )?;
 
         Self::ensure_model_usage_table(&conn)?;
         const SCHEMA_FLAG_MODEL_USAGE_BACKFILLED: i64 = 0x4;

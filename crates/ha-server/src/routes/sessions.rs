@@ -633,6 +633,18 @@ fn parse_download_flag(value: Option<&str>) -> bool {
 
 // ── Handlers ────────────────────────────────────────────────────
 
+/// Import the Hope server machine's local Codex history. The request accepts
+/// no path, so remote clients cannot turn it into an arbitrary file read.
+pub async fn import_local_codex_sessions(
+    State(ctx): State<Arc<AppContext>>,
+) -> Result<Json<ha_core::session::CodexImportReport>, AppError> {
+    Ok(Json(
+        ctx.session_db
+            .run(|db| db.import_local_codex_sessions())
+            .await?,
+    ))
+}
+
 /// `POST /api/sessions` — create a new session.
 pub async fn create_session(
     State(ctx): State<Arc<AppContext>>,

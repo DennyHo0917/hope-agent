@@ -718,6 +718,7 @@ pub fn run() {
             tauri_wrappers::mac_control_list_displays,
             tauri_wrappers::tool_recent_actions,
             // Session management
+            commands::session::import_local_codex_sessions_cmd,
             commands::session::create_session_cmd,
             commands::session::fork_session_cmd,
             commands::session::create_side_chat_cmd,

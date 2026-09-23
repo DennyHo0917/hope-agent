@@ -927,6 +927,7 @@ export default function ChatScreen({
         : null,
     [session.sessions, session.currentSessionId],
   )
+  const isCodexImported = currentSessionMeta?.origin?.kind === "codex"
   const [sideChats, setSideChats] = useState<SessionMeta[]>([])
   const [sideChatStateSourceId, setSideChatStateSourceId] = useState<string | null>(null)
   const [activeSideChatId, setActiveSideChatId] = useState<string | null>(null)
@@ -949,6 +950,7 @@ export default function ChatScreen({
   const sideChatSeedNonceRef = useRef(0)
   const canUseSideChat =
     !!currentSessionMeta &&
+    !isCodexImported &&
     (currentSessionMeta.kind ?? "regular") === "regular" &&
     !currentSessionMeta.incognito &&
     !currentSessionMeta.channelInfo &&
@@ -1126,6 +1128,7 @@ export default function ChatScreen({
   }, [])
   const canScheduleCurrentSession =
     !!currentSessionMeta &&
+    !isCodexImported &&
     (currentSessionMeta.kind ?? "regular") === "regular" &&
     !currentSessionMeta.incognito &&
     !currentSessionMeta.channelInfo &&
@@ -4931,7 +4934,8 @@ export default function ChatScreen({
   // only when that composer is actually mounted (cron / subagent sessions have
   // no input box). When true, MessageList must suppress its own empty greeting
   // so the two don't overlap.
-  const heroComposerActive = emptySessionInputHero && !isCronSession && !isSubagentSession
+  const heroComposerActive =
+    emptySessionInputHero && !isCronSession && !isSubagentSession && !isCodexImported
 
   return (
     <>
@@ -4953,6 +4957,7 @@ export default function ChatScreen({
         onSidebarCollapsedChange={handleSidebarCollapsedChange}
         onSwitchSession={handleSwitchSession}
         onNewChat={handleStartNewChat}
+        onImportComplete={() => void reloadSessions()}
         onArchiveSession={session.handleArchiveSession}
         onEditAgent={onOpenAgentSettings}
         onToggleSessionPinned={session.handleToggleSessionPinned}
@@ -5326,7 +5331,12 @@ export default function ChatScreen({
                 {/* Memory extraction toast — absolute-positioned above ChatInput
                  * so it doesn't shrink the MessageList scroll container when it
                  * appears/disappears. */}
-                {!isCronSession && !isSubagentSession && (
+                {isCodexImported && (
+                  <div className="border-t border-border/40 px-4 py-3 text-center text-sm text-muted-foreground">
+                    {t("chat.codexImportedReadOnly")}
+                  </div>
+                )}
+                {!isCronSession && !isSubagentSession && !isCodexImported && (
                   <div
                     className={cn(
                       "relative",
