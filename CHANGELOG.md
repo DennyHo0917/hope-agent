@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.54.0] - 2026-09-24
+
 ### Fixed
 
 - **长时间工具调用中的上下文压缩**：同一用户回合内可摘要已完成的旧工具轮次，同时保留原始请求和最新完整结果组，减少因上下文不足而中断。 (#747)
