@@ -674,7 +674,7 @@
     "modelsCount": "{{count}} model",
     "modifiedFiles": "Fail diubah suai",
     "moreActions": "Lebih banyak tindakan",
-    "codexImportAction": "Import sejarah Codex setempat",
+    "codexImportAction": "Import sejarah Codex dari mesin Hope Agent",
     "codexImportSummary": "Import Codex: {{created}} baharu, {{updated}} dikemas kini, {{skipped}} dilangkau",
     "codexImportFailed": "Tidak dapat mengimport sejarah Codex",
     "codexImportedReadOnly": "Sejarah Codex yang diimport adalah baca sahaja. Mulakan sembang baharu untuk meneruskan.",

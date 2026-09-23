@@ -674,7 +674,7 @@
     "modelsCount": "{{count}} моделей",
     "modifiedFiles": "Изменённые файлы",
     "moreActions": "Еще действия",
-    "codexImportAction": "Импортировать локальную историю Codex",
+    "codexImportAction": "Импортировать историю Codex с компьютера Hope Agent",
     "codexImportSummary": "Импорт Codex: новых {{created}}, обновлено {{updated}}, пропущено {{skipped}}",
     "codexImportFailed": "Не удалось импортировать историю Codex",
     "codexImportedReadOnly": "Импортированная история Codex доступна только для чтения. Чтобы продолжить, начните новый чат.",

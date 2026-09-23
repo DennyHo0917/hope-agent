@@ -674,7 +674,7 @@
     "modelsCount": "모델 {{count}}개",
     "modifiedFiles": "수정된 파일",
     "moreActions": "더 많은 기능",
-    "codexImportAction": "로컬 Codex 기록 가져오기",
+    "codexImportAction": "Hope Agent 실행 기기의 Codex 기록 가져오기",
     "codexImportSummary": "Codex 가져오기: 신규 {{created}}, 업데이트 {{updated}}, 건너뜀 {{skipped}}",
     "codexImportFailed": "Codex 기록을 가져올 수 없습니다",
     "codexImportedReadOnly": "가져온 Codex 기록은 읽기 전용입니다. 계속하려면 새 채팅을 시작하세요.",

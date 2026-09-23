@@ -674,7 +674,7 @@
     "modelsCount": "{{count}} モデル",
     "modifiedFiles": "変更されたファイル",
     "moreActions": "その他の機能",
-    "codexImportAction": "ローカルの Codex 履歴をインポート",
+    "codexImportAction": "Hope Agent 実行マシンの Codex 履歴をインポート",
     "codexImportSummary": "Codex のインポート: 新規 {{created}}、更新 {{updated}}、スキップ {{skipped}}",
     "codexImportFailed": "Codex 履歴をインポートできませんでした",
     "codexImportedReadOnly": "インポートした Codex 履歴は読み取り専用です。続けるには新しいチャットを開始してください。",

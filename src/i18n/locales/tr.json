@@ -674,7 +674,7 @@
     "modelsCount": "{{count}} model",
     "modifiedFiles": "Değiştirilen dosyalar",
     "moreActions": "Daha fazla işlem",
-    "codexImportAction": "Yerel Codex geçmişini içe aktar",
+    "codexImportAction": "Hope Agent makinesindeki Codex geçmişini içe aktar",
     "codexImportSummary": "Codex içe aktarma: {{created}} yeni, {{updated}} güncellendi, {{skipped}} atlandı",
     "codexImportFailed": "Codex geçmişi içe aktarılamadı",
     "codexImportedReadOnly": "İçe aktarılan Codex geçmişi salt okunurdur. Devam etmek için yeni bir sohbet başlatın.",

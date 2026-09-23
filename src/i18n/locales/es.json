@@ -674,7 +674,7 @@
     "modelsCount": "{{count}} modelos",
     "modifiedFiles": "Archivos modificados",
     "moreActions": "Más acciones",
-    "codexImportAction": "Importar historial local de Codex",
+    "codexImportAction": "Importar historial de Codex del equipo de Hope Agent",
     "codexImportSummary": "Importación de Codex: {{created}} nuevos, {{updated}} actualizados, {{skipped}} omitidos",
     "codexImportFailed": "No se pudo importar el historial de Codex",
     "codexImportedReadOnly": "El historial de Codex importado es de solo lectura. Inicia un chat nuevo para continuar.",

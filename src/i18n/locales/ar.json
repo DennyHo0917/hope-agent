@@ -674,7 +674,7 @@
     "modelsCount": "{{count}} نماذج",
     "modifiedFiles": "الملفات المعدّلة",
     "moreActions": "المزيد من الإجراءات",
-    "codexImportAction": "استيراد سجل Codex المحلي",
+    "codexImportAction": "استيراد سجل Codex من جهاز Hope Agent",
     "codexImportSummary": "استيراد Codex: {{created}} جديد، {{updated}} محدّث، {{skipped}} متخطّى",
     "codexImportFailed": "تعذّر استيراد سجل Codex",
     "codexImportedReadOnly": "سجل Codex المستورد للقراءة فقط. ابدأ محادثة جديدة للمتابعة.",

@@ -674,7 +674,7 @@
     "modelsCount": "{{count}} 个模型",
     "modifiedFiles": "生成/修改的文件",
     "moreActions": "更多功能",
-    "codexImportAction": "导入本机 Codex 记录",
+    "codexImportAction": "导入 Hope Agent 运行机器上的 Codex 记录",
     "codexImportSummary": "Codex 导入完成：新增 {{created}}，更新 {{updated}}，跳过 {{skipped}}",
     "codexImportFailed": "无法导入 Codex 记录",
     "codexImportedReadOnly": "导入的 Codex 记录为只读。要继续工作，请新建对话。",
