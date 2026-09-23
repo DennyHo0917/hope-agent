@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **一键导入本机 Codex 对话**：在会话侧栏导入 Codex 本地记录，按来源去重更新并以只读方式搜索、查看和导出。 (#748)
+
 ## [0.54.0] - 2026-09-24
 
 ### Fixed
