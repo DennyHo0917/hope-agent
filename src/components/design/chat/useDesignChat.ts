@@ -57,6 +57,8 @@ export interface UseDesignChatReturn {
   activeModel: ActiveModel | null
   reasoningEffort: string
   draftModelOverrideRef: React.MutableRefObject<ActiveModel | null>
+  modelSaving: boolean
+  modelSavePendingRef: React.MutableRefObject<boolean>
   handleModelChange: (key: string) => Promise<void>
   handleEffortChange: (effort: string) => void
 
@@ -121,6 +123,8 @@ export function useDesignChat(
   const loadingSessionsRef = useRef<Set<string>>(new Set())
   const manualModelOverrideRef = useRef<ActiveModel | null>(null)
   const draftModelOverrideRef = useRef<ActiveModel | null>(null)
+  const modelSavePendingRef = useRef(false)
+  const [modelSaving, setModelSaving] = useState(false)
   // 首页所选模型带入项目：作对话初始模型（ref 保持 loadModels 回调身份稳定）。
   const projectDefaultModelRef = useRef<ActiveModel | null | undefined>(projectDefaultModel)
   projectDefaultModelRef.current = projectDefaultModel
@@ -138,6 +142,7 @@ export function useDesignChat(
   const [oldestDbId, setOldestDbId] = useState<number | null>(null)
 
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([])
+  const [modelsReadyForProject, setModelsReadyForProject] = useState<string | null | undefined>()
   const [activeModel, setActiveModel] = useState<ActiveModel | null>(null)
   const [reasoningEffort, setReasoningEffort] = useState("medium")
 
@@ -152,10 +157,11 @@ export function useDesignChat(
     ? null
     : (manualModelOverrideRef.current ??
       (projectModel &&
-      availableModels.some(
-        (model) =>
-          model.providerId === projectModel.providerId && model.modelId === projectModel.modelId,
-      )
+      (modelsReadyForProject !== projectId ||
+        availableModels.some(
+          (model) =>
+            model.providerId === projectModel.providerId && model.modelId === projectModel.modelId,
+        ))
         ? projectModel
         : null))
 
@@ -192,6 +198,7 @@ export function useDesignChat(
         ])
         if (modelLoadVersionRef.current !== version) return null
         setAvailableModels(models)
+        setModelsReadyForProject(projectId)
         let displayModel = runtimeDefaults.model ?? null
         const manualOverride = manualModelOverrideRef.current
         const manualModel = manualOverride
@@ -229,7 +236,7 @@ export function useDesignChat(
         return null
       }
     },
-    [],
+    [projectId],
   )
 
   // Replace-load for SWITCHING to a thread (clears + repopulates). Version-guarded
@@ -438,6 +445,7 @@ export function useDesignChat(
     async (key: string) => {
       const [providerId, modelId] = key.split("::")
       if (!providerId || !modelId) return
+      if (modelSavePendingRef.current) return
       const next = { providerId, modelId }
       const sessionId = currentSessionIdRef.current
       const previousModel = activeModel
@@ -445,6 +453,8 @@ export function useDesignChat(
       setActiveModel(next)
       try {
         if (sessionId) {
+          modelSavePendingRef.current = true
+          setModelSaving(true)
           await getTransport().call("set_session_model", { sessionId, providerId, modelId })
           manualModelOverrideRef.current = null
         } else {
@@ -455,6 +465,9 @@ export function useDesignChat(
         setActiveModel(previousModel)
         logger.error("ui", "DesignChat::modelChange", "Failed to set session model", error)
         toast.error(t("common.saveFailed", "保存失败"))
+      } finally {
+        modelSavePendingRef.current = false
+        setModelSaving(false)
       }
     },
     [activeModel, t],
@@ -569,6 +582,8 @@ export function useDesignChat(
     activeModel,
     reasoningEffort,
     draftModelOverrideRef,
+    modelSaving,
+    modelSavePendingRef,
     handleModelChange,
     handleEffortChange,
     handleSwitchAgent,

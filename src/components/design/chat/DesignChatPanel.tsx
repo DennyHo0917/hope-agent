@@ -425,7 +425,7 @@ export const DesignChatPanel = forwardRef<DesignChatPanelHandle, Props>(function
         stream.setAttachedFiles((prev) => [...prev, createDraftAttachment(file, "picker")])
       },
       submitPrompt: (text) => {
-        if (loadingRef.current) return false
+        if (loadingRef.current || session.modelSavePendingRef.current) return false
         void stream.handleSend(text)
         return true
       },
@@ -824,7 +824,10 @@ export const DesignChatPanel = forwardRef<DesignChatPanelHandle, Props>(function
           structuredMentions={stream.typedMentions}
           onInputChange={stream.setInput}
           onInputChangeWithMention={stream.setInputWithMention}
-          onSend={() => stream.handleSend()}
+          onSend={() => {
+            if (!session.modelSavePendingRef.current) void stream.handleSend()
+          }}
+          sendDisabled={session.modelSaving}
           loading={session.loading}
           availableModels={session.availableModels}
           activeModel={session.activeModel}
