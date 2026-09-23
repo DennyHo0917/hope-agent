@@ -870,17 +870,17 @@ fn current_group_protection(
     Ok((user_anchor, owning_round.start))
 }
 
-/// Recover the current user-turn boundary from a provider accounting
+/// Recover the latest complete tool group's start from a provider accounting
 /// projection.
 ///
 /// Internal `_oc_round` stamps are intentionally stripped before Provider IO.
 /// Responses/Codex also represent one multi-call group as several adjacent
 /// `function_call`/`function_call_output` pairs, so requiring every projected
 /// result to belong to one reconstructed `MessageRound` is invalid. The
-/// canonical history already proved the complete group and froze its hard
-/// boundary. In the derived provider shape we only locate the same latest
-/// ordered result sequence and protect the call that owns its first result;
-/// later media items cannot move that boundary forward.
+/// canonical history already proved the complete group. In the derived shape,
+/// match the selected latest results to the latest ordered call occurrences
+/// after the preceding result. This still works if older rounds reused IDs;
+/// a missing current call fails closed instead of pairing with old history.
 fn provider_projection_current_group_hard_protected_start(
     history: &[Value],
     captures: &[CapturedToolAdmission],
@@ -890,17 +890,34 @@ fn provider_projection_current_group_hard_protected_start(
         .first()
         .map(|target| target.message_index)
         .context("Tier 1 provider projection has no current result target")?;
-    let rounds = crate::context_compact::build_message_rounds(history);
-    rounds
+    let lower_bound = history[..first_message]
         .iter()
-        .find(|round| {
-            round.start <= first_message
-                && first_message < round.end_exclusive
-                && round.has_tool_call
-                && round.has_tool_result
+        .rposition(|message| !tool_result_units(message).is_empty())
+        .map_or(0, |index| index + 1);
+    let calls = history
+        .iter()
+        .enumerate()
+        .skip(lower_bound)
+        .flat_map(|(message_index, message)| {
+            crate::context_compact::tool_call_ids(message)
+                .into_iter()
+                .map(move |call_id| (message_index, call_id))
         })
-        .map(|round| round.start)
-        .context("Tier 1 provider projection has no complete owning tool round")
+        .collect::<Vec<_>>();
+    let mut before_call_ordinal = calls.len();
+    let mut first_call = None;
+    for (capture, target) in captures.iter().zip(targets.iter()).rev() {
+        let call_ordinal = (0..before_call_ordinal)
+            .rev()
+            .find(|&index| {
+                let (message_index, call_id) = calls[index];
+                message_index < target.message_index && call_id == capture.call_id.as_str()
+            })
+            .context("Tier 1 provider projection has no matching current tool call")?;
+        first_call = Some(calls[call_ordinal].0);
+        before_call_ordinal = call_ordinal;
+    }
+    first_call.context("Tier 1 provider projection has no current tool group")
 }
 
 fn validate_tier3_current_group_installation(
@@ -5263,6 +5280,34 @@ mod tests {
             &captures,
         )
         .is_err());
+    }
+
+    #[test]
+    fn provider_projection_matches_current_calls_when_older_round_reused_ids() {
+        let history = vec![
+            serde_json::json!({"role":"user","content":"one continuing request"}),
+            serde_json::json!({"type":"function_call","call_id":"call-a","name":"read","arguments":"{}"}),
+            serde_json::json!({"type":"function_call_output","call_id":"call-a","output":"old result"}),
+            serde_json::json!({"type":"function_call","call_id":"call-a","name":"read","arguments":"{}"}),
+            serde_json::json!({"type":"function_call","call_id":"call-b","name":"read","arguments":"{}"}),
+            serde_json::json!({"type":"function_call_output","call_id":"call-a","output":"current A"}),
+            serde_json::json!({"type":"function_call_output","call_id":"call-b","output":"current B"}),
+        ];
+        let captures = vec![
+            capture(0, "call-a", "current A"),
+            capture(1, "call-b", "current B"),
+        ];
+        assert_eq!(
+            provider_projection_current_group_hard_protected_start(&history, &captures).unwrap(),
+            3
+        );
+
+        let mut missing_call = history.clone();
+        missing_call.remove(3);
+        assert!(
+            provider_projection_current_group_hard_protected_start(&missing_call, &captures)
+                .is_err()
+        );
     }
 
     #[test]

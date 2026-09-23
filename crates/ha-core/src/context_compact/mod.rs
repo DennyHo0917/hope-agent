@@ -119,7 +119,7 @@ pub use estimation::{
     estimate_request_tokens, estimate_request_tokens_with_tools, estimate_tokens,
 };
 #[doc(hidden)]
-pub use estimation::{set_tool_result_unit_text, tool_result_units};
+pub use estimation::{set_tool_result_unit_text, tool_call_ids, tool_result_units};
 pub use ledger::{
     build_runtime_ledger_message, render_runtime_ledger, JobLedgerItem, RuntimeLedgerSnapshot,
     SubagentLedgerItem,
