@@ -467,7 +467,7 @@ comparison        control/faulted、solo/team、baseline/candidate 配对
 | 确定性安全轨道 | `context-compaction-safety@1.1.0`，11 个用例 | 第 0～4 层请求投影、结果组接纳、同轮用户与最新结果组双锚点、摘要协议、恢复事务、完整请求容量证书、溢出证据闸、发送歧义终态和跨层边界 | 不评价某个真实模型写出的摘要是否语义充分 |
 | 真实模型语义轨道 | `HA-CTX-001..002` | 第 3 层摘要后的事实保真，以及模型只用 `read` 连续遍历 UTF-8 文件的能力 | 不模拟崩溃、发送状态未知或证明恰好一次副作用 |
 
-Evaluation Center 的“上下文压缩专项”画像一次调度两条轨道：先执行 10 个零网络安全用例，全部通过后再执行 2 个付费真实模型场景。结果页按轨道分开展示，并分别保存确定性 `eval-app-deterministic-evidence.v1` 与真实模型 `eval-model-campaign.v1`；两份结果不可合并成同一个通过位，也不能互相豁免失败。确定性轨道失败时，付费轨道不会启动。
+Evaluation Center 的“上下文压缩专项”画像一次调度两条轨道：先执行 11 个零网络安全用例，全部通过后再执行 2 个付费真实模型场景。结果页按轨道分开展示，并分别保存确定性 `eval-app-deterministic-evidence.v1` 与真实模型 `eval-model-campaign.v1`；两份结果不可合并成同一个通过位，也不能互相豁免失败。确定性轨道失败时，付费轨道不会启动。
 
 case、版本、标签、arm、重复次数和 tier 一律以 suite manifest 为准。业务域扩展沿用 Coding、Research、Knowledge、File、Browser、Terminal 六类终态契约；Pre-release 档位的 Research 使用**冻结语料**，实时 Web 必须单列 exploratory 基线并记录 URL、抓取时间和内容 hash。
 
