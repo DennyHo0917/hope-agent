@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **设计对话与技能子任务模型选择**：设计空间所选模型会用于实际对话并保存到会话，未指定专用模型的子任务继承父会话模型；上游繁忙提示不再暗示一定存在备用模型。 (#PR)
+
 ## [0.52.0] - 2026-09-22
 
 ### Added

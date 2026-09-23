@@ -348,6 +348,7 @@ export const DesignChatPanel = forwardRef<DesignChatPanelHandle, Props>(function
     sessions: session.sessions,
     agents: session.agents,
     activeModel: session.activeModel,
+    manualModelOverrideRef: session.draftModelOverrideRef,
     reloadSessions: session.reloadSessions,
     updateSessionMessages: session.updateSessionMessages,
     lastSeqRef: seqRef,
