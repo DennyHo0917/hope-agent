@@ -5153,7 +5153,7 @@ export default function ChatScreen({
             reasoningEffort={reasoningEffort}
             loading={session.loading}
             compacting={compacting}
-            onCompactContext={runCompactContextForCurrentSession}
+            onCompactContext={isCodexImported ? undefined : runCompactContextForCurrentSession}
             onRenameSession={handleRenameSession}
             onViewSystemPrompt={loadSystemPrompt}
             systemPromptLoading={systemPromptLoading}
@@ -5296,7 +5296,7 @@ export default function ChatScreen({
                   onSwitchModel={handleMessageSwitchModel}
                   onViewSystemPrompt={loadSystemPrompt}
                   compacting={compacting}
-                  onCompactContext={runCompactContextForCurrentSession}
+                  onCompactContext={isCodexImported ? undefined : runCompactContextForCurrentSession}
                   onOpenDashboardTab={onOpenDashboardTab}
                   onViewChildSession={(sid) => {
                     setSubagentPreviewSessionId(sid)
@@ -5305,12 +5305,19 @@ export default function ChatScreen({
                   subagentRunsSnapshot={subagentRuns}
                   bottomInset={isCronSession || isSubagentSession}
                   onOpenDiff={handleMainOpenDiff}
-                  onResume={(message) => {
-                    void stream.handleSend(message)
-                  }}
-                  onForkFromMessage={handleForkFromMessage}
+                  onResume={
+                    isCodexImported
+                      ? undefined
+                      : (message) => {
+                          void stream.handleSend(message)
+                        }
+                  }
+                  onForkFromMessage={isCodexImported ? undefined : handleForkFromMessage}
                   onEditAndResend={
-                    !isCronSession && !isSubagentSession && stream.pendingSends.length === 0
+                    !isCodexImported &&
+                    !isCronSession &&
+                    !isSubagentSession &&
+                    stream.pendingSends.length === 0
                       ? handleEditAndResend
                       : undefined
                   }
@@ -5832,7 +5839,7 @@ export default function ChatScreen({
                     availableModels={availableModels}
                     currentAgentId={session.currentAgentId}
                     compacting={compacting}
-                    onCompactContext={runCompactContextForCurrentSession}
+                    onCompactContext={isCodexImported ? undefined : runCompactContextForCurrentSession}
                     onCommandAction={handleCommandAction}
                     onViewSystemPrompt={loadSystemPrompt}
                     systemPromptLoading={systemPromptLoading}

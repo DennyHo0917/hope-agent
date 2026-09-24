@@ -6,10 +6,12 @@ use anyhow::{Context, Result};
 use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashSet;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::SessionDB;
 
@@ -60,7 +62,13 @@ fn codex_home() -> Result<PathBuf> {
         .join(".codex"))
 }
 
-fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>, depth: usize) -> Result<()> {
+fn collect_jsonl_files(
+    dir: &Path,
+    files: &mut BinaryHeap<Reverse<(SystemTime, PathBuf)>>,
+    depth: usize,
+    limit: usize,
+    report: &mut CodexImportReport,
+) -> Result<()> {
     if !dir.exists() {
         return Ok(());
     }
@@ -68,22 +76,54 @@ fn collect_jsonl_files(dir: &Path, files: &mut Vec<PathBuf>, depth: usize) -> Re
         anyhow::bail!("Codex session root must be a directory, not a symlink");
     }
     if depth > MAX_DEPTH {
-        anyhow::bail!("Codex session directory nesting exceeds {MAX_DEPTH}");
+        report.skipped += 1;
+        return Ok(());
     }
-    for entry in fs::read_dir(dir)? {
-        let entry = entry?;
-        let file_type = entry.file_type()?;
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(error) if depth == 0 => return Err(error.into()),
+        Err(_) => {
+            report.failed += 1;
+            return Ok(());
+        }
+    };
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(_) => {
+                report.failed += 1;
+                continue;
+            }
+        };
+        let file_type = match entry.file_type() {
+            Ok(file_type) => file_type,
+            Err(_) => {
+                report.failed += 1;
+                continue;
+            }
+        };
         if file_type.is_symlink() {
             continue;
         }
         if file_type.is_dir() {
-            collect_jsonl_files(&entry.path(), files, depth + 1)?;
+            collect_jsonl_files(&entry.path(), files, depth + 1, limit, report)?;
         } else if file_type.is_file() && entry.path().extension().is_some_and(|ext| ext == "jsonl")
         {
-            if files.len() >= MAX_FILES {
-                anyhow::bail!("Codex session file count exceeds {MAX_FILES}");
+            report.scanned += 1;
+            let modified = entry
+                .metadata()
+                .and_then(|metadata| metadata.modified())
+                .unwrap_or(UNIX_EPOCH);
+            let candidate = Reverse((modified, entry.path()));
+            if files.len() < limit {
+                files.push(candidate);
+            } else {
+                report.skipped += 1;
+                if files.peek().is_some_and(|oldest| candidate < *oldest) {
+                    files.pop();
+                    files.push(candidate);
+                }
             }
-            files.push(entry.path());
         }
     }
     Ok(())
@@ -125,6 +165,33 @@ fn normalized_timestamp(raw: Option<&str>, fallback: &str) -> String {
     raw.filter(|value| chrono::DateTime::parse_from_rfc3339(value).is_ok())
         .unwrap_or(fallback)
         .to_string()
+}
+
+/// Codex may serialize its own startup instructions as `role=user` text.
+/// Remove only known leading runtime envelopes, preserving any actual prompt
+/// that follows them in the same content block.
+fn visible_user_text(mut text: &str) -> Option<&str> {
+    text = text.trim_start();
+    loop {
+        let closing_tag = if text.starts_with("<recommended_plugins>") {
+            Some("</recommended_plugins>")
+        } else if text.starts_with("<environment_context>") {
+            Some("</environment_context>")
+        } else if text.starts_with("# AGENTS.md instructions for ") {
+            if !text.contains("<INSTRUCTIONS>") {
+                return None;
+            }
+            Some("</INSTRUCTIONS>")
+        } else {
+            None
+        };
+        let Some(closing_tag) = closing_tag else {
+            break;
+        };
+        let end = text.find(closing_tag)? + closing_tag.len();
+        text = text[end..].trim_start();
+    }
+    (!text.trim().is_empty()).then_some(text)
 }
 
 fn parse_record(bytes: &[u8]) -> Result<ImportedRecord> {
@@ -169,8 +236,15 @@ fn parse_record(bytes: &[u8]) -> Result<ImportedRecord> {
         for part in content {
             match part["type"].as_str() {
                 Some("input_text" | "output_text") => {
-                    if let Some(text) = part["text"].as_str().filter(|text| !text.is_empty()) {
-                        visible.push(text);
+                    if let Some(text) = part["text"].as_str() {
+                        let text = if role == "user" {
+                            visible_user_text(text)
+                        } else {
+                            (!text.is_empty()).then_some(text)
+                        };
+                        if let Some(text) = text {
+                            visible.push(text);
+                        }
                     }
                 }
                 Some(_) => unsupported_content += 1,
@@ -331,23 +405,33 @@ impl SessionDB {
 
     pub fn import_local_codex_sessions(&self) -> Result<CodexImportReport> {
         let root = codex_home()?;
-        let mut files = Vec::new();
-        collect_jsonl_files(&root.join("sessions"), &mut files, 0)?;
-        collect_jsonl_files(&root.join("archived_sessions"), &mut files, 0)?;
+        let mut files = BinaryHeap::new();
+        let mut report = CodexImportReport::default();
+        collect_jsonl_files(
+            &root.join("sessions"),
+            &mut files,
+            0,
+            MAX_FILES,
+            &mut report,
+        )?;
+        collect_jsonl_files(
+            &root.join("archived_sessions"),
+            &mut files,
+            0,
+            MAX_FILES,
+            &mut report,
+        )?;
         // A thread can appear in both active and archived roots. Prefer the
         // newest snapshot before the per-run source-id deduplication.
-        files.sort_by(|left, right| {
-            let left_modified = fs::metadata(left).and_then(|meta| meta.modified()).ok();
-            let right_modified = fs::metadata(right).and_then(|meta| meta.modified()).ok();
-            right_modified
-                .cmp(&left_modified)
-                .then_with(|| left.cmp(right))
-        });
-        let mut report = CodexImportReport::default();
+        let mut files: Vec<_> = files
+            .into_vec()
+            .into_iter()
+            .map(|Reverse(item)| item)
+            .collect();
+        files.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
         let mut seen_ids = HashSet::new();
         let mut read_bytes = 0u64;
-        for path in files {
-            report.scanned += 1;
+        for (_, path) in files {
             let outcome = (|| -> Result<Option<ImportedRecord>> {
                 let before = fs::symlink_metadata(&path)?;
                 if !before.file_type().is_file()
@@ -392,9 +476,12 @@ impl SessionDB {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_record;
     use super::SessionDB;
+    use super::{collect_jsonl_files, parse_record, CodexImportReport};
     use crate::session::NewMessage;
+    use std::cmp::Reverse;
+    use std::collections::BinaryHeap;
+    use std::time::{Duration, UNIX_EPOCH};
 
     #[test]
     fn imports_only_visible_user_and_assistant_text() {
@@ -411,6 +498,50 @@ mod tests {
         assert_eq!(record.messages[0].content, "你好");
         assert_eq!(record.messages[1].content, "回答");
         assert_eq!(record.unsupported_content, 1);
+    }
+
+    #[test]
+    fn strips_generated_user_context_without_losing_the_prompt() {
+        let lines = [
+            serde_json::json!({"type":"session_meta","timestamp":"2026-01-01T00:00:00Z","payload":{"id":"source-2"}}),
+            serde_json::json!({"type":"response_item","timestamp":"2026-01-01T00:00:01Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>hidden</environment_context>"}]}}),
+            serde_json::json!({"type":"response_item","timestamp":"2026-01-01T00:00:02Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<recommended_plugins>hidden</recommended_plugins>\n# AGENTS.md instructions for /workspace\n<INSTRUCTIONS>hidden</INSTRUCTIONS>\n<environment_context>hidden</environment_context>\nActual request"}]}}),
+            serde_json::json!({"type":"response_item","timestamp":"2026-01-01T00:00:03Z","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Answer"}]}}),
+        ];
+        let jsonl = lines
+            .iter()
+            .map(serde_json::Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let record = parse_record(jsonl.as_bytes()).unwrap();
+        assert_eq!(record.title, "Actual request");
+        assert_eq!(record.messages.len(), 2);
+        assert_eq!(record.messages[0].content, "Actual request");
+        assert_eq!(record.messages[1].content, "Answer");
+    }
+
+    #[test]
+    fn file_limit_skips_excess_without_discarding_the_batch() {
+        let dir = tempfile::tempdir().unwrap();
+        for (name, seconds) in [("a.jsonl", 1), ("b.jsonl", 3), ("c.jsonl", 2)] {
+            let path = dir.path().join(name);
+            std::fs::write(&path, b"{}").unwrap();
+            std::fs::File::open(path)
+                .unwrap()
+                .set_modified(UNIX_EPOCH + Duration::from_secs(seconds))
+                .unwrap();
+        }
+        let mut files = BinaryHeap::<Reverse<_>>::new();
+        let mut report = CodexImportReport::default();
+        collect_jsonl_files(dir.path(), &mut files, 0, 2, &mut report).unwrap();
+        assert_eq!(report.scanned, 3);
+        assert_eq!(report.skipped, 1);
+        assert_eq!(files.len(), 2);
+        let selected: Vec<_> = files
+            .into_iter()
+            .map(|Reverse((_, path))| path.file_name().unwrap().to_owned())
+            .collect();
+        assert!(!selected.contains(&"a.jsonl".into()));
     }
 
     #[test]
@@ -436,6 +567,8 @@ mod tests {
             })
             .unwrap();
         assert!(db.is_codex_imported_session(&session_id).unwrap());
+        assert!(db.fork_session(&session_id, None).is_err());
+        assert!(db.create_side_chat(&session_id).is_err());
         assert!(db
             .append_message(&session_id, &NewMessage::user("new turn"))
             .is_err());

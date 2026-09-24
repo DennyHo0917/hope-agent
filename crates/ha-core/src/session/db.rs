@@ -3204,6 +3204,14 @@ impl SessionDB {
             if incognito != 0 {
                 anyhow::bail!("incognito sessions cannot be forked");
             }
+            let imported: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+                params![source_session_id],
+                |row| row.get(0),
+            )?;
+            if imported {
+                anyhow::bail!("imported Codex sessions cannot be forked");
+            }
             // Regular top-level chats and design-space threads are forkable; the
             // latter产物仍是设计线程（补建 design_chat_threads 锚点见下）。cron / 子会话 /
             // 其它隐藏 kind（side / knowledge / eval_fixture）与 incognito 仍拒。侧聊只允许
