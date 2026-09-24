@@ -70,6 +70,7 @@ function isMentionableSession(session: SessionMeta, currentSessionId: string | n
     !session.channelInfo &&
     !session.incognito &&
     !session.archivedAt &&
+    session.origin?.kind !== "codex" &&
     (session.kind ?? "regular") === "regular"
   )
 }

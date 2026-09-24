@@ -78,7 +78,7 @@ pub fn resolve_candidates(
         }
     };
 
-    let sessions = session_db.list_sessions(filters.agent_id.as_deref())?;
+    let sessions = session_db.list_sessions_for_recap(filters.agent_id.as_deref())?;
     let mut candidates: Vec<CandidateSession> = sessions
         .into_iter()
         .filter(|s| {
@@ -513,4 +513,76 @@ fn strip_code_fence(s: &str) -> &str {
     let s = s.strip_prefix("```json").unwrap_or(s);
     let s = s.strip_prefix("```").unwrap_or(s);
     s.strip_suffix("```").unwrap_or(s).trim()
+}
+
+#[cfg(test)]
+mod candidate_tests {
+    use super::*;
+    use ha_core::session::NewMessage;
+    use rusqlite::params;
+
+    #[test]
+    fn recap_candidates_exclude_imports_before_session_cap() {
+        let dir = tempfile::tempdir().unwrap();
+        let db_path = dir.path().join("sessions.db");
+        let session_db = Arc::new(SessionDB::open(&db_path).unwrap());
+        let recap_db = RecapDb::open(&dir.path().join("recap.db")).unwrap();
+        let live = session_db.create_session("ha-main").unwrap();
+        let imported = session_db.create_session("ha-main").unwrap();
+        for session in [&live, &imported] {
+            session_db
+                .append_message(&session.id, &NewMessage::user("question"))
+                .unwrap();
+            session_db
+                .append_message(&session.id, &NewMessage::assistant("answer"))
+                .unwrap();
+        }
+
+        let conn = rusqlite::Connection::open(&db_path).unwrap();
+        conn.execute_batch(
+            "CREATE TABLE channel_conversations (
+                session_id TEXT PRIMARY KEY,
+                channel_id TEXT,
+                account_id TEXT,
+                chat_id TEXT,
+                chat_type TEXT,
+                sender_name TEXT
+            );",
+        )
+        .unwrap();
+        let now = chrono::Utc::now();
+        conn.execute(
+            "INSERT INTO session_import_sources
+             (provider, source_id, session_id, content_hash, imported_at)
+             VALUES ('codex', 'recap-source', ?1, 'hash', ?2)",
+            params![imported.id, now.to_rfc3339()],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE sessions SET updated_at = ?1 WHERE id = ?2",
+            params![(now - chrono::Duration::minutes(2)).to_rfc3339(), live.id],
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE sessions SET updated_at = ?1 WHERE id = ?2",
+            params![
+                (now - chrono::Duration::minutes(1)).to_rfc3339(),
+                imported.id
+            ],
+        )
+        .unwrap();
+
+        let (candidates, _) = resolve_candidates(
+            &session_db,
+            &recap_db,
+            &GenerateMode::Full {
+                filters: RecapFilters::default(),
+            },
+            7,
+            1,
+        )
+        .unwrap();
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].session_id, live.id);
+    }
 }

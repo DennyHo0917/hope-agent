@@ -3852,6 +3852,24 @@ impl SessionDB {
         Ok(sessions)
     }
 
+    /// Recap extraction can send session transcripts to a model. Keep
+    /// externally imported records out of its candidate set.
+    pub fn list_sessions_for_recap(&self, agent_id: Option<&str>) -> Result<Vec<SessionMeta>> {
+        let (sessions, _) = self.list_sessions_paged_inner(
+            agent_id,
+            ProjectFilter::All,
+            ParentSessionFilter::All,
+            None,
+            None,
+            None,
+            "s.updated_at DESC",
+            false,
+            PinnedSessionFilter::All,
+            true,
+        )?;
+        Ok(sessions)
+    }
+
     /// Model-facing discovery excludes externally imported transcripts. Owner
     /// UI listings continue to use `list_sessions` and can display the copies.
     pub fn list_sessions_for_model(
@@ -3947,6 +3965,7 @@ impl SessionDB {
             "s.updated_at DESC",
             false,
             PinnedSessionFilter::All,
+            false,
         )
     }
 
@@ -3976,6 +3995,7 @@ impl SessionDB {
             // timeline, never the main sidebar list.
             true,
             pinned_filter,
+            false,
         )
     }
 
@@ -3984,8 +4004,21 @@ impl SessionDB {
     /// cannot be consumed by cron / subagent / channel / incognito / knowledge
     /// sessions before the caller gets a chance to filter them.
     pub fn list_recent_regular_chats(&self, limit: u32) -> Result<(Vec<SessionMeta>, u32)> {
+        self.list_recent_regular_chats_inner(limit, false)
+    }
+
+    fn list_recent_regular_chats_inner(
+        &self,
+        limit: u32,
+        exclude_imported: bool,
+    ) -> Result<(Vec<SessionMeta>, u32)> {
         let conn = self.read_conn()?;
-        let regular_where = format!(" WHERE {}", regular_session_scope_sql("s"));
+        let mut regular_where = format!(" WHERE {}", regular_session_scope_sql("s"));
+        if exclude_imported {
+            regular_where.push_str(
+                " AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)",
+            );
+        }
         let count_sql = format!("SELECT COUNT(*) FROM sessions s{regular_where}");
         let total: u32 = conn.query_row(&count_sql, [], |r| r.get::<_, u32>(0))?;
         let sql = format!(
@@ -4018,7 +4051,8 @@ impl SessionDB {
 
         let candidate_limit = limit.saturating_add(u32::from(exclude_session_id.is_some()));
         let mut candidates = if query.trim().is_empty() {
-            self.list_recent_regular_chats(candidate_limit)?.0
+            self.list_recent_regular_chats_inner(candidate_limit, true)?
+                .0
         } else {
             let matches =
                 self.search_distinct_regular_session_ids(query, candidate_limit as usize)?;
@@ -4055,7 +4089,10 @@ impl SessionDB {
         }
 
         let conn = self.read_conn()?;
-        let session_scope = regular_session_scope_sql("s");
+        let session_scope = format!(
+            "{} AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)",
+            regular_session_scope_sql("s")
+        );
         let mut results = Vec::new();
         let mut seen = HashSet::new();
 
@@ -4174,6 +4211,7 @@ impl SessionDB {
         order_by: &str,
         exclude_cron: bool,
         pinned_filter: PinnedSessionFilter,
+        exclude_imported: bool,
     ) -> Result<(Vec<SessionMeta>, u32)> {
         // Sidebar list is a hot read during streaming — use the read pool so a
         // concurrent message-append write doesn't block it.
@@ -4234,6 +4272,12 @@ impl SessionDB {
         where_clauses
             .push("s.kind NOT IN ('side','knowledge','design','eval_fixture')".to_string());
         where_clauses.push("s.archived_at IS NULL".to_string());
+        if exclude_imported {
+            where_clauses.push(
+                "NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)"
+                    .to_string(),
+            );
+        }
 
         // Cron run sessions live in the cron panel's "conversations" timeline,
         // never the main sidebar list — hide them when the sidebar asks.
@@ -8696,6 +8740,23 @@ mod tests {
         set_session_updated_at(&db, &other.id, "2026-05-02T00:00:00Z");
         set_session_updated_at(&db, &channel.id, "2026-05-03T00:00:00Z");
 
+        let imported = db.create_session("ha-main").expect("imported session");
+        db.update_session_title(&imported.id, "alpha imported")
+            .expect("set imported title");
+        db.append_message(&imported.id, &NewMessage::user("alpha imported"))
+            .expect("append imported message");
+        {
+            let conn = db.conn.lock().expect("lock connection");
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'mention-source', ?1, 'hash', ?2)",
+                rusqlite::params![imported.id, chrono::Utc::now().to_rfc3339()],
+            )
+            .expect("mark imported");
+        }
+        set_session_updated_at(&db, &imported.id, "2026-05-04T00:00:00Z");
+
         let recent = db
             .list_session_mention_candidates("", Some(&other.id), 1)
             .expect("list recent mention candidates");
@@ -8718,6 +8779,7 @@ mod tests {
         assert!(searched_ids.contains(chatty.id.as_str()));
         assert!(searched_ids.contains(other.id.as_str()));
         assert!(!searched_ids.contains(channel.id.as_str()));
+        assert!(!searched_ids.contains(imported.id.as_str()));
 
         let _ = std::fs::remove_file(&db_path);
     }
