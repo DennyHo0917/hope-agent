@@ -154,6 +154,7 @@ export default function ChatSidebar({
   // ── History search ─────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SessionSearchResult[] | null>(null)
+  const [searchRevision, setSearchRevision] = useState(0)
   const [searching, setSearching] = useState(false)
   const [unreadRevealTarget, setUnreadRevealTarget] = useState<
     (UnreadSessionTarget & { signal: number }) | null
@@ -267,6 +268,7 @@ export default function ChatSidebar({
   }, [sidebarDisplayMode])
 
   useEffect(() => {
+    let cancelled = false
     const q = searchQuery.trim()
     if (!q) {
       setSearchResults(null)
@@ -285,16 +287,19 @@ export default function ChatSidebar({
           // cron matches could fall outside the limit and never render.
           types: GLOBAL_SESSION_SEARCH_TYPES,
         })
-        setSearchResults(sortSessionSearchResults(results ?? []))
+        if (!cancelled) setSearchResults(sortSessionSearchResults(results ?? []))
       } catch (err) {
         logger.error("chat", "ChatSidebar::search", "search failed", err)
-        setSearchResults([])
+        if (!cancelled) setSearchResults([])
       } finally {
-        setSearching(false)
+        if (!cancelled) setSearching(false)
       }
     }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [searchQuery, searchRevision])
 
   // Browsing pages must apply their ownership/type filters before LIMIT/OFFSET.
   // The global recent page remains a project-tree change signal and search
@@ -592,6 +597,10 @@ export default function ChatSidebar({
                         })
                         if (result.failed > 0) toast.warning(summary)
                         else toast.success(summary)
+                        // Re-import replaces message rows and their IDs, so
+                        // existing search hits cannot remain clickable.
+                        setSearchResults(null)
+                        setSearchRevision((revision) => revision + 1)
                         await reloadSidebarSessions().catch((error) => {
                           logger.warn(
                             "chat",
