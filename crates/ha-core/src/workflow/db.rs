@@ -354,6 +354,24 @@ pub(crate) fn ensure_tables(conn: &Connection) -> Result<()> {
 }
 
 impl SessionDB {
+    pub fn ensure_workflow_run_session_writable(&self, run_id: &str) -> Result<()> {
+        let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {e}"))?;
+        let imported: Option<bool> = conn
+            .query_row(
+                "SELECT EXISTS(SELECT 1 FROM session_import_sources
+                               WHERE session_id = workflow_runs.session_id)
+                 FROM workflow_runs WHERE id = ?1",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .optional()?;
+        match imported {
+            Some(true) => Err(anyhow!("Imported Codex conversations are read-only")),
+            Some(false) => Ok(()),
+            None => Err(anyhow!("workflow run {} not found", run_id)),
+        }
+    }
+
     pub fn create_workflow_run_with_control(
         &self,
         mut input: CreateWorkflowRunInput,
@@ -483,18 +501,26 @@ impl SessionDB {
         let budget_json = stable_json(&input.budget)?;
         let goal_id = {
             let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
-            let incognito: Option<i64> = conn
+            let session_policy: Option<(i64, bool)> = conn
                 .query_row(
-                    "SELECT incognito FROM sessions WHERE id = ?1",
+                    "SELECT incognito,
+                            EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)
+                     FROM sessions WHERE id = ?1",
                     params![input.session_id],
-                    |row| row.get(0),
+                    |row| Ok((row.get(0)?, row.get(1)?)),
                 )
                 .optional()?;
-            let incognito =
-                incognito.ok_or_else(|| anyhow!("Session not found: {}", input.session_id))?;
+            let (incognito, imported) =
+                session_policy.ok_or_else(|| anyhow!("Session not found: {}", input.session_id))?;
             if incognito != 0 {
                 return Err(anyhow!(
                     "Cannot create durable workflow run for incognito session {}",
+                    input.session_id
+                ));
+            }
+            if imported {
+                return Err(anyhow!(
+                    "Cannot create workflow run for imported Codex session {}",
                     input.session_id
                 ));
             }
@@ -1408,6 +1434,7 @@ impl SessionDB {
     }
 
     pub fn resume_workflow_run(&self, run_id: &str) -> Result<WorkflowRun> {
+        self.ensure_workflow_run_session_writable(run_id)?;
         let run = self.transition_workflow_run(
             run_id,
             WorkflowRunState::Running,
@@ -1418,6 +1445,7 @@ impl SessionDB {
     }
 
     pub fn approve_workflow_run(&self, run_id: &str) -> Result<WorkflowRun> {
+        self.ensure_workflow_run_session_writable(run_id)?;
         let Some(run) = self.get_workflow_run(run_id)? else {
             return Err(anyhow!("workflow run {} not found", run_id));
         };
@@ -1494,14 +1522,26 @@ impl SessionDB {
             let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
             let row = conn
                 .query_row(
-                    "SELECT state, primary_owner FROM workflow_runs WHERE id = ?1",
+                    "SELECT state, primary_owner,
+                            EXISTS(SELECT 1 FROM session_import_sources
+                                   WHERE session_id = workflow_runs.session_id)
+                     FROM workflow_runs WHERE id = ?1",
                     params![run_id],
-                    |row| Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?)),
+                    |row| {
+                        Ok((
+                            row.get::<_, String>(0)?,
+                            row.get::<_, Option<String>>(1)?,
+                            row.get::<_, bool>(2)?,
+                        ))
+                    },
                 )
                 .optional()?;
-            let Some((raw_state, current_owner)) = row else {
+            let Some((raw_state, current_owner, imported)) = row else {
                 return Ok(None);
             };
+            if imported {
+                return Err(anyhow!("Imported Codex conversations are read-only"));
+            }
             (parse_run_state(&raw_state)?, current_owner)
         };
 
@@ -1566,6 +1606,10 @@ impl SessionDB {
                     created_at, updated_at, completed_at
              FROM workflow_runs
              WHERE state IN ('draft', 'running', 'recovering')
+               AND NOT EXISTS (
+                    SELECT 1 FROM session_import_sources
+                     WHERE session_id = workflow_runs.session_id
+               )
                AND NOT EXISTS (
                     WITH RECURSIVE session_lineage(id, parent_session_id) AS (
                         SELECT id, parent_session_id
