@@ -2724,19 +2724,26 @@ impl SessionDB {
         input: &CreateLoopScheduleInput,
     ) -> Result<(Option<String>, String, String)> {
         let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
-        let session: Option<(String, i64)> = conn
+        let session: Option<(String, i64, bool)> = conn
             .query_row(
-                "SELECT agent_id, incognito FROM sessions WHERE id = ?1",
+                "SELECT agent_id, incognito,
+                        EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)
+                 FROM sessions WHERE id = ?1",
                 params![input.session_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?;
-        let (session_agent_id, incognito) =
+        let (session_agent_id, incognito, imported) =
             session.ok_or_else(|| anyhow!("session not found: {}", input.session_id))?;
         if incognito != 0 {
             return Err(anyhow!(
                 "Cannot create durable loop schedule for incognito session {}",
                 input.session_id
+            ));
+        }
+        if imported {
+            return Err(anyhow!(
+                "Cannot create a loop schedule for an imported Codex session"
             ));
         }
         let goal_id = match input.goal_id.as_deref() {
@@ -6724,6 +6731,46 @@ mod tests {
             )
             .expect_err("cost budget is not supported yet");
         assert!(err.to_string().contains("cost ledger"));
+    }
+
+    #[test]
+    fn create_loop_rejects_imported_session() {
+        let (_dir, session_db, cron_db) = temp_dbs();
+        let session = session_db.create_session("ha-main").expect("session");
+        session_db
+            .with_conn_for_test(|conn| {
+                conn.execute(
+                    "INSERT INTO session_import_sources
+                     (provider, source_id, session_id, content_hash, imported_at)
+                     VALUES ('codex', 'source-loop', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                    params![session.id],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let err = session_db
+            .create_loop_schedule(
+                &cron_db,
+                CreateLoopScheduleInput {
+                    session_id: session.id,
+                    goal_id: None,
+                    goal_criterion_id: None,
+                    prompt: "Should not run".into(),
+                    trigger_kind: LoopTriggerKind::Interval,
+                    trigger_spec: json!({ "intervalSecs": 60 }),
+                    execution_strategy: LoopExecutionStrategy::Continue,
+                    max_runs: None,
+                    max_runtime_secs: None,
+                    token_budget: None,
+                    cost_budget_micros: None,
+                    max_no_progress_runs: None,
+                    max_failures: None,
+                    backoff_secs: None,
+                    agent_id: None,
+                },
+            )
+            .expect_err("imported session must remain read-only");
+        assert!(err.to_string().contains("imported Codex"));
     }
 
     #[test]

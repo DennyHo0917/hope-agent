@@ -354,7 +354,7 @@ pub(crate) async fn tool_recall_memory(
                     .or_else(|| global_session_db.map(|db| db.as_ref()))
                 {
                     let history_results = session_db
-                        .search_message_content(
+                        .search_message_content_for_model(
                             &query_text_for_search,
                             Some(&agent_id),
                             None,

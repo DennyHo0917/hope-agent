@@ -931,11 +931,13 @@ impl SessionDB {
         let now = now_rfc3339();
         let id = format!("goal_{}", uuid::Uuid::new_v4().simple());
         let conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {}", e))?;
-        let (incognito, mode): (i64, String) = conn
+        let (incognito, mode, imported): (i64, String, bool) = conn
             .query_row(
-                "SELECT incognito, execution_mode FROM sessions WHERE id = ?1",
+                "SELECT incognito, execution_mode,
+                        EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)
+                 FROM sessions WHERE id = ?1",
                 params![input.session_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()?
             .ok_or_else(|| anyhow!("Session not found: {}", input.session_id))?;
@@ -943,6 +945,11 @@ impl SessionDB {
             return Err(anyhow!(
                 "Cannot create durable goal for incognito session {}",
                 input.session_id
+            ));
+        }
+        if imported {
+            return Err(anyhow!(
+                "Cannot create a goal for an imported Codex session"
             ));
         }
         let existing: Option<String> = conn
@@ -5062,6 +5069,37 @@ mod tests {
             })
             .expect_err("incognito goal must be rejected");
         assert!(err.to_string().contains("incognito"));
+    }
+
+    #[test]
+    fn create_goal_rejects_imported_session() {
+        let (_dir, db) = temp_db();
+        let session = db.create_session("ha-main").expect("create session");
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'source-goal', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                params![session.id],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+        let err = db
+            .create_goal(CreateGoalInput {
+                session_id: session.id,
+                objective: "Should not run".into(),
+                completion_criteria: String::new(),
+                domain: None,
+                workflow_template_id: None,
+                workflow_template_version: None,
+                workflow_task_type: None,
+                budget_token_limit: None,
+                budget_time_limit_secs: None,
+                budget_turn_limit: None,
+            })
+            .expect_err("imported session must remain read-only");
+        assert!(err.to_string().contains("imported Codex"));
     }
 
     #[test]

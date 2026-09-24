@@ -548,6 +548,20 @@ mod tests {
     fn reimport_keeps_session_id_and_blocks_live_messages() {
         let dir = tempfile::tempdir().unwrap();
         let db = SessionDB::open_ephemeral_for_test(&dir.path().join("sessions.db")).unwrap();
+        db.with_conn_for_test(|conn| {
+            conn.execute_batch(
+                "CREATE TABLE channel_conversations (
+                    session_id TEXT PRIMARY KEY,
+                    channel_id TEXT,
+                    account_id TEXT,
+                    chat_id TEXT,
+                    chat_type TEXT,
+                    sender_name TEXT
+                );",
+            )?;
+            Ok(())
+        })
+        .unwrap();
         let first = concat!(
             "{\"type\":\"session_meta\",\"timestamp\":\"2026-01-01T00:00:00Z\",\"payload\":{\"id\":\"source-1\"}}\n",
             "{\"type\":\"response_item\",\"timestamp\":\"2026-01-01T00:00:01Z\",\"payload\":{\"type\":\"message\",\"role\":\"user\",\"content\":[{\"type\":\"input_text\",\"text\":\"Question\"}]}}\n"
@@ -567,6 +581,25 @@ mod tests {
             })
             .unwrap();
         assert!(db.is_codex_imported_session(&session_id).unwrap());
+        assert!(db
+            .list_sessions(None)
+            .unwrap()
+            .iter()
+            .any(|s| s.id == session_id));
+        assert!(db
+            .list_sessions_for_model(None, false, 20)
+            .unwrap()
+            .iter()
+            .all(|s| s.id != session_id));
+        assert!(db
+            .search_messages("Question", None, None, None, 10)
+            .unwrap()
+            .iter()
+            .any(|hit| hit.session_id == session_id));
+        assert!(db
+            .search_message_content_for_model("Question", None, None, None, 10)
+            .unwrap()
+            .is_empty());
         assert!(db.fork_session(&session_id, None).is_err());
         assert!(db.create_side_chat(&session_id).is_err());
         assert!(db

@@ -3852,6 +3852,31 @@ impl SessionDB {
         Ok(sessions)
     }
 
+    /// Model-facing discovery excludes externally imported transcripts. Owner
+    /// UI listings continue to use `list_sessions` and can display the copies.
+    pub fn list_sessions_for_model(
+        &self,
+        agent_id: Option<&str>,
+        include_cron: bool,
+        limit: usize,
+    ) -> Result<Vec<SessionMeta>> {
+        let conn = self.read_conn()?;
+        let mut sql = format!(
+            "{} WHERE s.incognito = 0 AND s.archived_at IS NULL
+             AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+             AND (?1 IS NULL OR s.agent_id = ?1)
+             AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)",
+            session_meta_select()
+        );
+        if !include_cron {
+            sql.push_str(" AND s.is_cron = 0");
+        }
+        sql.push_str(" ORDER BY s.updated_at DESC LIMIT ?2");
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![agent_id, limit as i64], Self::row_to_session_meta)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     /// List the durable side conversations owned by one regular source session.
     /// They are intentionally absent from all global/sidebar/search listings and
     /// are discoverable only through this parent-scoped relation.
@@ -7319,7 +7344,7 @@ impl SessionDB {
         types: Option<&[SessionTypeFilter]>,
         limit: usize,
     ) -> Result<Vec<SessionSearchResult>> {
-        self.search_messages_inner(query, agent_id, session_id, types, limit, true)
+        self.search_messages_inner(query, agent_id, session_id, types, limit, true, false)
     }
 
     /// Search persisted chat message content only.
@@ -7335,7 +7360,20 @@ impl SessionDB {
         types: Option<&[SessionTypeFilter]>,
         limit: usize,
     ) -> Result<Vec<SessionSearchResult>> {
-        self.search_messages_inner(query, agent_id, session_id, types, limit, false)
+        self.search_messages_inner(query, agent_id, session_id, types, limit, false, false)
+    }
+
+    /// Model-facing history search excludes imported transcripts while owner
+    /// UI search remains able to find them.
+    pub fn search_message_content_for_model(
+        &self,
+        query: &str,
+        agent_id: Option<&str>,
+        session_id: Option<&str>,
+        types: Option<&[SessionTypeFilter]>,
+        limit: usize,
+    ) -> Result<Vec<SessionSearchResult>> {
+        self.search_messages_inner(query, agent_id, session_id, types, limit, false, true)
     }
 
     fn search_messages_inner(
@@ -7346,6 +7384,7 @@ impl SessionDB {
         types: Option<&[SessionTypeFilter]>,
         limit: usize,
         include_title_matches: bool,
+        exclude_imported: bool,
     ) -> Result<Vec<SessionSearchResult>> {
         if limit == 0 {
             return Ok(Vec::new());
@@ -7362,6 +7401,13 @@ impl SessionDB {
         // parameter first, then appends these shared filters.
         let mut where_clauses: Vec<String> = Vec::new();
         let mut filter_params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if exclude_imported {
+            where_clauses.push(
+                "NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)"
+                    .to_string(),
+            );
+        }
 
         if let Some(aid) = agent_id {
             where_clauses.push("s.agent_id = ?".to_string());
