@@ -175,6 +175,18 @@ fn normalized_timestamp(raw: Option<&str>, fallback: &str) -> String {
 /// Codex may serialize its own startup instructions as `role=user` text.
 /// Remove only known leading runtime envelopes, preserving any actual prompt
 /// that follows them in the same content block.
+fn strip_runtime_separator(text: &str) -> &str {
+    if let Some(rest) = text.strip_prefix("\r\n") {
+        rest
+    } else if let Some(rest) = text.strip_prefix('\n') {
+        rest
+    } else if text.starts_with(' ') && !text.starts_with("  ") {
+        &text[1..]
+    } else {
+        text
+    }
+}
+
 fn visible_user_text(mut text: &str) -> Option<&str> {
     loop {
         let candidate = text.trim_start();
@@ -197,7 +209,7 @@ fn visible_user_text(mut text: &str) -> Option<&str> {
             break;
         };
         let end = end + closing_tag.len();
-        text = candidate[end..].trim_start();
+        text = strip_runtime_separator(&candidate[end..]);
     }
     (!text.trim().is_empty()).then_some(text)
 }
@@ -570,6 +582,22 @@ mod tests {
             .join("\n");
         let record = parse_record(jsonl.as_bytes()).unwrap();
         assert_eq!(record.messages[0].content, prompt);
+    }
+
+    #[test]
+    fn prompt_after_runtime_envelopes_preserves_indentation() {
+        let prompt = "    code block\n    second line";
+        for text in [
+            format!("<environment_context>hidden</environment_context>\n{prompt}"),
+            format!("<environment_context>hidden</environment_context>\r\n{prompt}"),
+            format!("<recommended_plugins>hidden</recommended_plugins>\n<environment_context>hidden</environment_context>\n{prompt}"),
+        ] {
+            assert_eq!(visible_user_text(&text), Some(prompt));
+        }
+        assert_eq!(
+            visible_user_text("<environment_context>hidden</environment_context>\n\n    code"),
+            Some("\n    code")
+        );
     }
 
     #[test]
