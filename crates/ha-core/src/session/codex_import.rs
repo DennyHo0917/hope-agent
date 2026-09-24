@@ -526,7 +526,9 @@ mod tests {
         for (name, seconds) in [("a.jsonl", 1), ("b.jsonl", 3), ("c.jsonl", 2)] {
             let path = dir.path().join(name);
             std::fs::write(&path, b"{}").unwrap();
-            std::fs::File::open(path)
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(path)
                 .unwrap()
                 .set_modified(UNIX_EPOCH + Duration::from_secs(seconds))
                 .unwrap();
