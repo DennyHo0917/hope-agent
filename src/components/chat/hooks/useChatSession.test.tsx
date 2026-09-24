@@ -175,10 +175,12 @@ describe("imported conversation refresh", () => {
       },
     ]
     let hasMore = true
+    let sessionPage = [importedSession, otherSession]
     mocks.transport.call.mockReset()
     mocks.transport.call.mockImplementation(
       async (command: string, args?: { sessionId?: string }) => {
-        if (command === "list_sessions_cmd") return [[importedSession, otherSession], 2]
+        if (command === "list_sessions_cmd") return [sessionPage, 2]
+        if (command === "get_session_cmd") return importedSession
         if (command === "regular_unread_total_cmd") return 0
         if (command === "list_agents") return [{ id: DEFAULT_AGENT_ID, name: "Main" }]
         if (command === "load_session_messages_latest_cmd") {
@@ -224,5 +226,27 @@ describe("imported conversation refresh", () => {
       await result.current.handleSwitchSession(importedSession.id)
     })
     expect(result.current.messages.map((message) => message.dbId)).toEqual([42])
+
+    await act(async () => result.current.handleSwitchSession(otherSession.id))
+    sessionPage = [otherSession]
+    await act(async () => result.current.reloadSessions())
+    expect(result.current.sessions.map((session) => session.id)).toEqual([otherSession.id])
+    expect(result.current.sessionCacheRef.current.has(importedSession.id)).toBe(true)
+
+    rows = [
+      {
+        id: 84,
+        sessionId: importedSession.id,
+        role: "user",
+        content: "Newest text",
+        timestamp: "2026-01-03T00:00:00Z",
+      },
+    ]
+    await act(async () => result.current.refreshImportedSessions())
+    expect(result.current.sessionCacheRef.current.has(importedSession.id)).toBe(false)
+    await act(async () => {
+      expect(await result.current.handleSwitchSession(importedSession.id)).toBe(true)
+    })
+    expect(result.current.messages.map((message) => message.dbId)).toEqual([84])
   })
 })

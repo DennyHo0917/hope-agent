@@ -1458,8 +1458,19 @@ pub(crate) async fn tool_note_moc(args: &Value, ctx: &ToolExecContext) -> Result
     ))
 }
 
+fn ensure_session_to_note_source(
+    sdb: &ha_core::session::SessionDB,
+    session_id: &str,
+) -> Result<()> {
+    if sdb.is_codex_imported_session(session_id)? {
+        bail!("refusing to distill an imported Codex session into a permanent note");
+    }
+    Ok(())
+}
+
 /// `session_to_note({kb, session?, path?})` — distill a conversation into a single
-/// structured permanent note (LLM via side_query). Refuses incognito sources.
+/// structured permanent note (LLM via side_query). Refuses incognito and
+/// externally imported sources.
 pub(crate) async fn tool_session_to_note(args: &Value, ctx: &ToolExecContext) -> Result<String> {
     let kb = str_arg(args, "kb").ok_or_else(|| anyhow!("Missing 'kb' parameter"))?;
     require_write(ctx, kb)?;
@@ -1475,6 +1486,7 @@ pub(crate) async fn tool_session_to_note(args: &Value, ctx: &ToolExecContext) ->
         bail!("refusing to distill an incognito session into a permanent note");
     }
     let sdb = ha_core::get_session_db().ok_or_else(|| anyhow!("session db not available"))?;
+    ensure_session_to_note_source(&sdb, &session_id)?;
     let messages = sdb.load_session_messages(&session_id)?;
     let mut transcript = String::new();
     for m in &messages {
@@ -1873,6 +1885,29 @@ fn contains_word(haystack: &str, needle: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn session_to_note_rejects_imported_codex_source_before_model_query() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sessions.sqlite3");
+        let db = ha_core::session::SessionDB::open(&path).unwrap();
+        let live = db.create_session("ha-main").unwrap();
+        let imported = db.create_session("ha-main").unwrap();
+        let conn = rusqlite::Connection::open(&path).unwrap();
+        conn.execute(
+            "INSERT INTO session_import_sources
+             (provider, source_id, session_id, content_hash, imported_at)
+             VALUES ('codex', 'source-1', ?1, 'hash-1', '2026-09-24T00:00:00Z')",
+            rusqlite::params![imported.id],
+        )
+        .unwrap();
+
+        assert!(ensure_session_to_note_source(&db, &live.id).is_ok());
+        assert!(ensure_session_to_note_source(&db, &imported.id)
+            .unwrap_err()
+            .to_string()
+            .contains("imported Codex session"));
+    }
 
     #[test]
     fn norm_path_adds_md() {

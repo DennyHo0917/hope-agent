@@ -15,13 +15,13 @@
 - 来源根目录按 `CODEX_HOME`（若配置）或用户主目录下的 `.codex` 解析，只扫描 `sessions/**/*.jsonl` 与 `archived_sessions/**/*.jsonl` 的普通文件。拒绝越界的符号链接；不触碰 `auth.json`、配置、日志、缓存或项目文件。
 - `session_meta.payload.id` 是稳定来源 ID；缺少或重复 ID 的文件单独跳过并计入结果。保留时间戳；不导入 `cwd`、`base_instructions`、`world_state`、`turn_context`、`compacted`、`token_usage_record`。
 - 仅导入 `response_item` 中 `type=message` 且 `role=user|assistant` 的可见 `input_text` / `output_text`。Codex 可能把自身注入的 `AGENTS.md`、环境信息和插件推荐也写成 `role=user`；解析时剥离这些位于消息开头的完整运行时信封，保留其后的真实提问。按 JSONL 顺序保存。`developer` / `system`、推理、工具调用与结果、图片原始数据、事件和传输元数据不导入；不支持的内容类型计数并在结果中说明。标题取首条非空用户正文的短摘要，保留用户之后手动改的标题。
-- 每条导入消息以外部资料对待；Markdown 渲染遵循现有转义规则。导入不创建可供模型恢复的 `context_json`、工具状态、审批状态或执行队列。用户界面可查看和搜索副本；模型侧 `sessions_list` / `session_status` / `sessions_history` / `sessions_search`、`recall_memory(include_history=true)`、行为感知和回顾提取均排除导入记录，避免未经不可信资料封装的正文进入活跃对话。`@` 会话提及与 IM `/sessions` 候选也排除导入记录；IM `/session` 解析和最终绑定入口拒绝导入记录，避免向远端聊天回放只读历史。ACP 会话列表、加载和恢复入口同样排除导入记录。
+- 每条导入消息以外部资料对待；Markdown 渲染遵循现有转义规则。导入不创建可供模型恢复的 `context_json`、工具状态、审批状态或执行队列。用户界面可查看和搜索副本；模型侧 `sessions_list` / `session_status` / `sessions_history` / `sessions_search`、`recall_memory(include_history=true)`、`session_to_note`、行为感知和回顾提取均排除导入记录，避免未经不可信资料封装的正文进入活跃对话。`@` 会话提及与 IM `/sessions` 候选也排除导入记录；IM `/session` 解析和最终绑定入口拒绝导入记录，避免向远端聊天回放只读历史。ACP 会话列表、加载和恢复入口同样排除导入记录。
 
 ## 持久化与幂等
 
 导入记录仍使用普通会话的读取与搜索投影，`SessionMeta.origin` 只用于展示。只读状态由独立来源台账判定：`TurnKernel` 在提交前拒绝导入会话，`messages` 插入触发器阻止其他持久化入口追加消息。侧栏打开时隐藏输入框和工作台执行操作；模型侧跨会话发送、Goal / Loop 创建与定时目标校验也拒绝导入会话。仪表盘的会话与消息活动统计排除导入记录，避免把 Codex 历史算作 Hope 使用量。
 
-新增 kernel 所有的 `session_import_sources` 台账：`provider`、`source_id`、`session_id`、`content_hash`、`imported_at` 及非敏感统计。`(provider, source_id)` 唯一；`session_id` 唯一。对每个文件先解析完整且稳定的快照，再在一个 SQLite 事务里写入会话、消息与来源台账，或替换同一来源的旧导入消息。重跑时哈希未变化直接跳过；源文件追加或改动时原 Hope 会话 ID 保持不变，只更新其只读副本。前端导入完成后清除旧导入会话的消息缓存与分页游标，当前打开的导入会话从数据库重新加载，避免新旧消息 ID 混合。导入过程不调用会话消息的实时 Hook 镜像、未读提醒或模型用量记账。分叉和手动压缩在内核入口拒绝导入会话，避免生成显示历史与模型上下文不一致的可写副本。
+新增 kernel 所有的 `session_import_sources` 台账：`provider`、`source_id`、`session_id`、`content_hash`、`imported_at` 及非敏感统计。`(provider, source_id)` 唯一；`session_id` 唯一。对每个文件先解析完整且稳定的快照，再在一个 SQLite 事务里写入会话、消息与来源台账，或替换同一来源的旧导入消息。重跑时哈希未变化直接跳过；源文件追加或改动时原 Hope 会话 ID 保持不变，只更新其只读副本。前端导入完成后清除已知导入会话的消息缓存与分页游标，包括已经离开当前会话列表页的记录；当前打开的导入会话从数据库重新加载，避免新旧消息 ID 混合。导入过程不调用会话消息的实时 Hook 镜像、未读提醒或模型用量记账。分叉和手动压缩在内核入口拒绝导入会话，避免生成显示历史与模型上下文不一致的可写副本。
 
 扫描期间若文件变化，只跳过该文件并在结果中提示下次重试；单个坏文件不阻断其余文件。导入前后都不改写 Codex 文件。删除 Hope 副本时一并删除来源台账；下一次点击导入可以重新带回该记录。
 

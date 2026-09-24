@@ -161,6 +161,9 @@ export function useChatSession({
   const failedSessionLoadsRef = useRef(new Set<string>())
   const switchVersionRef = useRef(0)
   const sessionCacheRef = useRef<Map<string, Message[]>>(new Map())
+  // Keep IDs seen on earlier pages so re-import can invalidate their cached
+  // transcripts even after a later pagination reload drops their metadata.
+  const knownImportedSessionIdsRef = useRef<Set<string>>(new Set())
   const loadingSessionsRef = useRef<Set<string>>(new Set())
   const hasMoreRef = useRef<Map<string, boolean>>(new Map())
   const hasMoreAfterRef = useRef<Map<string, boolean>>(new Map())
@@ -195,6 +198,9 @@ export function useChatSession({
 
   useEffect(() => {
     sessionsRef.current = sessions
+    for (const session of sessions) {
+      if (session.origin?.kind === "codex") knownImportedSessionIdsRef.current.add(session.id)
+    }
   }, [sessions])
 
   useEffect(() => {
@@ -298,6 +304,7 @@ export function useChatSession({
   )
 
   const upsertSessionMeta = useCallback((meta: SessionMeta) => {
+    if (meta.origin?.kind === "codex") knownImportedSessionIdsRef.current.add(meta.id)
     setSessions((prev) => {
       const idx = prev.findIndex((session) => session.id === meta.id)
       if (idx === -1) return sortSessionsForSidebar([meta, ...prev])
@@ -361,6 +368,7 @@ export function useChatSession({
   const evictSessionLocal = useCallback(
     (sessionId: string) => {
       clearPerSessionRefs(sessionId)
+      knownImportedSessionIdsRef.current.delete(sessionId)
       loadingSessionsRef.current.delete(sessionId)
       setLoadingSessionIds((prev) => {
         if (!prev.has(sessionId)) return prev
@@ -838,6 +846,7 @@ export function useChatSession({
       // Imported rows are replaced on re-import, so a cached transcript cannot
       // safely be merged with the database's new message IDs.
       const imported =
+        knownImportedSessionIdsRef.current.has(sessionId) ||
         sessionsRef.current.find((session) => session.id === sessionId)?.origin?.kind === "codex"
       const cached =
         imported || opts?.forceReload ? undefined : sessionCacheRef.current.get(sessionId)
@@ -1033,11 +1042,10 @@ export function useChatSession({
   )
 
   const refreshImportedSessions = useCallback(async () => {
-    const importedIds = new Set(
-      sessionsRef.current
-        .filter((session) => session.origin?.kind === "codex")
-        .map((session) => session.id),
-    )
+    const importedIds = new Set(knownImportedSessionIdsRef.current)
+    for (const session of sessionsRef.current) {
+      if (session.origin?.kind === "codex") importedIds.add(session.id)
+    }
     for (const sessionId of importedIds) clearPerSessionRefs(sessionId)
     const activeId = currentSessionIdRef.current
     if (activeId && importedIds.has(activeId)) {
