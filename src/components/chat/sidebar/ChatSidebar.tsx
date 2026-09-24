@@ -593,7 +593,7 @@ export default function ChatSidebar({
                         const summary = t("chat.codexImportSummary", {
                           created: result.created,
                           updated: result.updated,
-                          skipped: result.skipped + result.failed,
+                          skipped: result.unchanged + result.skipped + result.failed,
                         })
                         if (result.failed > 0) toast.warning(summary)
                         else toast.success(summary)

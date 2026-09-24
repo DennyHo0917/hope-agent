@@ -8,6 +8,7 @@ import ChatSidebar from "./ChatSidebar"
 const mocks = vi.hoisted(() => ({
   call: vi.fn(),
   reload: vi.fn(async () => {}),
+  t: vi.fn((key: string) => key),
 }))
 
 vi.mock("@/lib/transport-provider", () => ({
@@ -17,7 +18,7 @@ vi.mock("@/lib/logger", () => ({ logger: { error: vi.fn(), warn: vi.fn() } }))
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), warning: vi.fn(), error: vi.fn() } }))
 vi.mock("react-i18next", async (importOriginal) => ({
   ...(await importOriginal<typeof import("react-i18next")>()),
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({ t: mocks.t }),
 }))
 vi.mock("@/components/ui/tooltip", () => ({
   IconTip: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -74,7 +75,7 @@ test("refreshes active search hits after Codex re-import replaces message IDs", 
     if (command === "search_sessions_cmd") return currentHits
     if (command === "import_local_codex_sessions_cmd") {
       currentHits = [hit(42)]
-      return { scanned: 1, created: 0, updated: 1, unchanged: 0, skipped: 0, failed: 0 }
+      return { scanned: 5, created: 0, updated: 1, unchanged: 2, skipped: 1, failed: 1 }
     }
     return null
   })
@@ -103,5 +104,10 @@ test("refreshes active search hits after Codex re-import replaces message IDs", 
 
   fireEvent.click(screen.getByRole("button", { name: "chat.codexImportAction" }))
   await waitFor(() => expect(screen.getByTestId("search-hits").textContent).toBe("42"))
+  expect(mocks.t).toHaveBeenCalledWith("chat.codexImportSummary", {
+    created: 0,
+    updated: 1,
+    skipped: 4,
+  })
   expect(mocks.call.mock.calls.filter(([command]) => command === "search_sessions_cmd")).toHaveLength(2)
 })
