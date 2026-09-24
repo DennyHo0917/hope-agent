@@ -957,6 +957,14 @@ impl SessionDB {
         };
         let mut conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {e}"))?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let imported: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+            params![session_id],
+            |row| row.get(0),
+        )?;
+        if imported {
+            return Err(anyhow!("Imported Codex conversations are read-only"));
+        }
         let stop_admission = match requested_stop_admission {
             Some(admission) => {
                 if !super::autonomy_pause::foreground_stop_admission_is_current_with_conn(
@@ -2371,6 +2379,11 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("imported session is read-only"));
+            assert!(db
+                .reserve_direct_turn_admission(&session_id, source.as_str(), source, None)
+                .unwrap_err()
+                .to_string()
+                .contains("Imported Codex conversations are read-only"));
         }
         assert!(
             enqueue_scheduled(&db, scheduled(&session_id, "scheduled", "1"))
@@ -2388,6 +2401,16 @@ mod tests {
             })
             .unwrap();
         assert_eq!(queued_count, 0);
+        let direct_count: i64 = db
+            .with_conn_for_test(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM direct_turn_admissions WHERE session_id = ?1",
+                    params![session_id],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(direct_count, 0);
     }
 
     fn queued(session_id: &str, request_id: &str) -> NewQueuedTurnMessage {
