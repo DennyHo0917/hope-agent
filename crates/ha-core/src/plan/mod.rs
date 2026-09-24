@@ -51,7 +51,7 @@ pub use index::{
 // Git
 pub use git::{
     cleanup_checkpoint, create_checkpoint_for_session, create_git_checkpoint, get_checkpoint_ref,
-    rollback_to_checkpoint,
+    rollback_session_to_checkpoint,
 };
 
 // Subagent
@@ -62,6 +62,28 @@ pub use subagent::{
 
 // Transition (centralized side-effect helper)
 pub use transition::{maybe_complete_plan, transition_state, TransitionOutcome};
+
+fn ensure_writable_session(session_id: &str) -> anyhow::Result<()> {
+    if let Some(db) = crate::get_session_db() {
+        check_writable_session(db, session_id)?;
+    }
+    Ok(())
+}
+
+fn check_writable_session(db: &crate::session::SessionDB, session_id: &str) -> anyhow::Result<()> {
+    if db.is_codex_imported_session(session_id)? {
+        anyhow::bail!("Imported Codex conversations are read-only");
+    }
+    Ok(())
+}
+
+async fn ensure_writable_session_async(session_id: &str) -> anyhow::Result<()> {
+    if let Some(db) = crate::get_session_db() {
+        let sid = session_id.to_string();
+        db.run(move |db| check_writable_session(db, &sid)).await?;
+    }
+    Ok(())
+}
 
 /// Embedded side chats have no plan review/approval surface. Keep their tool
 /// schemas and execution gate aligned, honoring an isolated turn DB first.

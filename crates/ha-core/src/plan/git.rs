@@ -131,7 +131,7 @@ pub async fn get_checkpoint_ref(session_id: &str) -> Option<String> {
 /// Rollback to a git checkpoint by resetting the current branch to the checkpoint.
 /// This performs a `git reset --hard <checkpoint_branch>` to undo all changes
 /// made during plan execution.
-pub fn rollback_to_checkpoint(checkpoint_ref: &str) -> Result<String> {
+fn rollback_to_checkpoint(checkpoint_ref: &str) -> Result<String> {
     let git_root = git_repo_root().ok_or_else(|| anyhow::anyhow!("Not inside a git repository"))?;
 
     if !ref_exists(&git_root, checkpoint_ref) {
@@ -180,6 +180,20 @@ pub fn rollback_to_checkpoint(checkpoint_ref: &str) -> Result<String> {
         let stderr = String::from_utf8_lossy(&result.stderr).to_string();
         Err(anyhow::anyhow!("Git reset failed: {}", stderr))
     }
+}
+
+/// Roll back a session's active plan checkpoint after checking its write policy.
+pub async fn rollback_session_to_checkpoint(session_id: &str) -> Result<Option<String>> {
+    super::ensure_writable_session_async(session_id).await?;
+    let Some(checkpoint) = get_checkpoint_ref(session_id).await else {
+        return Ok(None);
+    };
+    let message = rollback_to_checkpoint(&checkpoint)?;
+    let mut map = store().write().await;
+    if let Some(meta) = map.get_mut(session_id) {
+        meta.checkpoint_ref = None;
+    }
+    Ok(Some(message))
 }
 
 /// Clean up a checkpoint branch (e.g., after successful execution).

@@ -3,6 +3,33 @@ mod tests {
     use crate::plan::*;
 
     #[test]
+    fn plan_write_policy_rejects_imported_session() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let db =
+            crate::session::SessionDB::open_ephemeral_for_test(&temp.path().join("sessions.db"))
+                .expect("open test db");
+        let imported = db.create_session("ha-main").expect("imported session");
+        let live = db.create_session("ha-main").expect("live session");
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'plan-source', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                rusqlite::params![imported.id],
+            )?;
+            Ok(())
+        })
+        .expect("mark imported session");
+
+        assert!(crate::plan::check_writable_session(&db, &imported.id)
+            .expect_err("imported plan operations must fail")
+            .to_string()
+            .contains("read-only"));
+        crate::plan::check_writable_session(&db, &live.id)
+            .expect("live plan operations remain allowed");
+    }
+
+    #[test]
     fn test_plan_mode_state_roundtrip() {
         assert_eq!(PlanModeState::from_str("planning"), PlanModeState::Planning);
         assert_eq!(PlanModeState::from_str("review"), PlanModeState::Review);

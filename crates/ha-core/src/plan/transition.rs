@@ -46,6 +46,7 @@ pub async fn transition_state(
     target: PlanModeState,
     reason: &'static str,
 ) -> anyhow::Result<TransitionOutcome> {
+    super::ensure_writable_session_async(session_id).await?;
     let checkpoint_ref = get_checkpoint_ref(session_id).await;
     let should_create_checkpoint = if target == PlanModeState::Executing {
         let previous_state = get_plan_state(session_id).await;
