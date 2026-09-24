@@ -5631,6 +5631,9 @@ impl SessionDB {
         session_id: &str,
         window_days: Option<u32>,
     ) -> Result<ReportScope> {
+        if self.is_codex_imported_session(session_id)? {
+            bail!("Imported Codex conversations are read-only");
+        }
         let window_days = window_days
             .unwrap_or(DEFAULT_WINDOW_DAYS)
             .clamp(1, MAX_WINDOW_DAYS);
@@ -5650,6 +5653,10 @@ impl SessionDB {
                 "SELECT id FROM sessions
                  WHERE project_id = ?1
                    AND incognito = 0
+                   AND NOT EXISTS (
+                       SELECT 1 FROM session_import_sources source
+                       WHERE source.session_id = sessions.id
+                   )
                    AND (updated_at >= ?2 OR id = ?3)
                  ORDER BY updated_at DESC
                  LIMIT ?4",

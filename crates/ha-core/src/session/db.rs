@@ -3797,6 +3797,9 @@ impl SessionDB {
 
     /// Move a session to a project (or remove it from the current project when `project_id` is `None`).
     pub fn set_session_project(&self, session_id: &str, project_id: Option<&str>) -> Result<()> {
+        if self.is_codex_imported_session(session_id)? {
+            anyhow::bail!("Imported Codex conversations are read-only");
+        }
         let conn = self
             .conn
             .lock()
@@ -8830,6 +8833,61 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn imported_session_cannot_be_assigned_to_project_or_enter_coding_scope() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let db = SessionDB::open_ephemeral_for_test(&temp.path().join("sessions.db"))
+            .expect("open test db");
+        ensure_channel_conversations_table(&db);
+        let imported = db.create_session("ha-main").expect("imported session");
+        let live = db.create_session("ha-main").expect("live session");
+        db.set_session_project(&live.id, Some("project-a"))
+            .expect("assign live session");
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'project-source', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                params![imported.id],
+            )?;
+            Ok(())
+        })
+        .expect("mark imported session");
+
+        assert!(db
+            .set_session_project(&imported.id, Some("project-a"))
+            .expect_err("imported session cannot join a project")
+            .to_string()
+            .contains("read-only"));
+        assert_eq!(
+            db.get_session(&imported.id)
+                .expect("read imported session")
+                .expect("imported session exists")
+                .project_id,
+            None
+        );
+
+        // An earlier version may already have assigned a project before the guard existed.
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "UPDATE sessions SET project_id = 'project-a' WHERE id = ?1",
+                params![imported.id],
+            )?;
+            Ok(())
+        })
+        .expect("simulate prior project assignment");
+        let scope = db
+            .resolve_coding_report_scope(&live.id, None)
+            .expect("live coding scope");
+        assert_eq!(scope.session_ids, vec![live.id]);
+        assert!(db
+            .resolve_coding_report_scope(&imported.id, None)
+            .err()
+            .expect("imported session cannot start coding report")
+            .to_string()
+            .contains("read-only"));
     }
 
     #[test]
