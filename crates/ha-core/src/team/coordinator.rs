@@ -24,6 +24,16 @@ pub async fn create_team(
     template_id: Option<&str>,
     config: Option<TeamConfig>,
 ) -> Result<Team> {
+    let imported = {
+        let db = db.clone();
+        let lead_session_id = lead_session_id.to_string();
+        db.run(move |db| db.is_codex_imported_session(&lead_session_id))
+            .await?
+    };
+    if imported {
+        anyhow::bail!("Imported Codex conversations are read-only");
+    }
+
     // Check active team limit
     let active_count = {
         let db = db.clone();
@@ -120,6 +130,16 @@ pub async fn spawn_member(
     role_description: Option<&str>,
     color_index: usize,
 ) -> Result<TeamMember> {
+    let imported = {
+        let db = db.clone();
+        let lead_session_id = team.lead_session_id.clone();
+        db.run(move |db| db.is_codex_imported_session(&lead_session_id))
+            .await?
+    };
+    if imported {
+        anyhow::bail!("Imported Codex conversations are read-only");
+    }
+
     // Reserve the target before persisting the TeamMember row. Subagent spawn
     // acquires its own admission later, but doing that only after this insert
     // leaves a deletion race that can strand an active Team on a removed id.
@@ -946,6 +966,44 @@ You are a member of team "{}".
 mod tests {
     use super::*;
     use crate::subagent::{SubagentDeliveryKind, SubagentOwnerKind, SubagentRun, SubagentStatus};
+
+    #[tokio::test]
+    async fn imported_lead_session_cannot_create_team() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let db = Arc::new(
+            SessionDB::open_ephemeral_for_test(&temp.path().join("sessions.db"))
+                .expect("open test db"),
+        );
+        let lead = db
+            .create_session("lead-agent")
+            .expect("create lead session");
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'team-source', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                rusqlite::params![lead.id],
+            )?;
+            Ok(())
+        })
+        .expect("mark imported");
+
+        assert!(create_team(
+            &db,
+            "Imported team",
+            None,
+            &lead.id,
+            "lead-agent",
+            &[],
+            None,
+            None,
+        )
+        .await
+        .expect_err("imported lead cannot create a team")
+        .to_string()
+        .contains("read-only"));
+        assert_eq!(db.count_active_teams_for_agent("lead-agent").unwrap(), 0);
+    }
 
     fn resumed_member() -> serde_json::Value {
         serde_json::json!({

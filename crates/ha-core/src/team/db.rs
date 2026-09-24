@@ -293,6 +293,14 @@ impl SessionDB {
                     rusqlite::Error::QueryReturnedNoRows => anyhow::anyhow!("Team not found"),
                     other => other.into(),
                 })?;
+            let imported: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+                params![team.lead_session_id],
+                |row| row.get(0),
+            )?;
+            if imported {
+                anyhow::bail!("Imported Codex conversations are read-only");
+            }
             if team.status != TeamStatus::Paused {
                 anyhow::bail!("Team is not paused");
             }
