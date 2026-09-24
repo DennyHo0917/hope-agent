@@ -2,7 +2,7 @@
 
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import type { AvailableModel, ChatRuntimeDefaults } from "@/types/chat"
+import type { AvailableModel, ChatRuntimeDefaults, SessionMessage, SessionMeta } from "@/types/chat"
 import { DEFAULT_AGENT_ID } from "@/types/tools"
 import { useChatSession } from "./useChatSession"
 
@@ -135,5 +135,94 @@ describe("new chat model selection", () => {
     })
 
     expect(applyModelForDisplay.mock.calls).toEqual([["enabled-provider::enabled-model"]])
+  })
+})
+
+describe("imported conversation refresh", () => {
+  afterEach(() => {
+    cleanup()
+    vi.clearAllMocks()
+  })
+
+  test("replaces rewritten message IDs and resets pagination after re-import", async () => {
+    const importedSession = {
+      id: "codex-session",
+      agentId: DEFAULT_AGENT_ID,
+      title: "Codex history",
+      origin: { kind: "codex", id: "codex-1", label: "Codex" },
+      createdAt: "2026-01-01T00:00:00Z",
+      updatedAt: "2026-01-01T00:00:00Z",
+      messageCount: 1,
+      unreadCount: 0,
+      channelUnreadCount: 0,
+      hasError: false,
+      pendingInteractionCount: 0,
+      isCron: false,
+      incognito: false,
+    } as SessionMeta
+    const otherSession = {
+      ...importedSession,
+      id: "ordinary-session",
+      origin: null,
+    }
+    let rows: SessionMessage[] = [
+      {
+        id: 1,
+        sessionId: importedSession.id,
+        role: "user",
+        content: "Old text",
+        timestamp: "2026-01-01T00:00:00Z",
+      },
+    ]
+    let hasMore = true
+    mocks.transport.call.mockReset()
+    mocks.transport.call.mockImplementation(
+      async (command: string, args?: { sessionId?: string }) => {
+        if (command === "list_sessions_cmd") return [[importedSession, otherSession], 2]
+        if (command === "regular_unread_total_cmd") return 0
+        if (command === "list_agents") return [{ id: DEFAULT_AGENT_ID, name: "Main" }]
+        if (command === "load_session_messages_latest_cmd") {
+          return args?.sessionId === importedSession.id
+            ? [rows, rows.length, hasMore]
+            : [[], 0, false]
+        }
+        if (command === "get_agent_config") return { model: { primary: null } }
+        return null
+      },
+    )
+    const { result } = setup()
+    await waitFor(() => expect(result.current.sessions).toHaveLength(2))
+    await act(async () => {
+      expect(await result.current.handleSwitchSession(importedSession.id)).toBe(true)
+    })
+    expect(result.current.messages.map((message) => message.content)).toEqual(["Old text"])
+    expect(result.current.hasMore).toBe(true)
+
+    rows = [
+      {
+        id: 42,
+        sessionId: importedSession.id,
+        role: "user",
+        content: "New text",
+        timestamp: "2026-01-02T00:00:00Z",
+      },
+    ]
+    hasMore = false
+    await act(async () => result.current.refreshImportedSessions())
+
+    expect(result.current.messages.map((message) => message.content)).toEqual(["New text"])
+    expect(
+      result.current.sessionCacheRef.current
+        .get(importedSession.id)
+        ?.map((message) => message.dbId),
+    ).toEqual([42])
+    expect(result.current.hasMoreRef.current.get(importedSession.id)).toBe(false)
+    expect(result.current.oldestDbIdRef.current.get(importedSession.id)).toBe(42)
+
+    await act(async () => {
+      await result.current.handleSwitchSession(otherSession.id)
+      await result.current.handleSwitchSession(importedSession.id)
+    })
+    expect(result.current.messages.map((message) => message.dbId)).toEqual([42])
   })
 })

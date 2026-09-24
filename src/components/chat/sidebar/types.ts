@@ -40,7 +40,7 @@ export interface ChatSidebarProps {
     opts?: { targetMessageId?: number; highlightTerms?: string[] },
   ) => void
   onNewChat: (agentId: string, opts?: { incognito?: boolean }) => void
-  onImportComplete?: () => void
+  onImportComplete?: () => void | Promise<void>
   onArchiveSession: (sessionId: string) => void | Promise<void>
   onEditAgent?: (agentId: string) => void
   onToggleSessionPinned?: (session: SessionMeta, pinned: boolean) => void

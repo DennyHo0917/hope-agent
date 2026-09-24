@@ -4957,7 +4957,10 @@ export default function ChatScreen({
         onSidebarCollapsedChange={handleSidebarCollapsedChange}
         onSwitchSession={handleSwitchSession}
         onNewChat={handleStartNewChat}
-        onImportComplete={() => void reloadSessions()}
+        onImportComplete={async () => {
+          await session.refreshImportedSessions()
+          await reloadSessions()
+        }}
         onArchiveSession={session.handleArchiveSession}
         onEditAgent={onOpenAgentSettings}
         onToggleSessionPinned={session.handleToggleSessionPinned}

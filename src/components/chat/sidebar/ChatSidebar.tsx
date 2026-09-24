@@ -600,7 +600,14 @@ export default function ChatSidebar({
                             error,
                           )
                         })
-                        onImportComplete?.()
+                        await Promise.resolve(onImportComplete?.()).catch((error) => {
+                          logger.warn(
+                            "chat",
+                            "ChatSidebar::refreshAfterCodexImport",
+                            "Imported conversation refresh failed",
+                            error,
+                          )
+                        })
                       } catch (error) {
                         logger.error(
                           "chat",

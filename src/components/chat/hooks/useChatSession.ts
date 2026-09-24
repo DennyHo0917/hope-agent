@@ -100,6 +100,8 @@ export interface UseChatSessionReturn {
     sessionId: string,
     opts?: { targetMessageId?: number; highlightTerms?: string[] },
   ) => Promise<boolean>
+  /** Replace imported transcripts after an import rewrites their message rows. */
+  refreshImportedSessions: () => Promise<void>
   handleNewChat: (agentId: string) => Promise<void>
   handleArchiveSession: (sessionId: string) => Promise<void>
   handleLoadMore: () => Promise<void>
@@ -802,13 +804,20 @@ export function useChatSession({
 
   // Switch to an existing session
   const handleSwitchSession = useCallback(
-    async (sessionId: string, opts?: { targetMessageId?: number; highlightTerms?: string[] }) => {
+    async (
+      sessionId: string,
+      opts?: { targetMessageId?: number; highlightTerms?: string[]; forceReload?: boolean },
+    ) => {
       const targetMessageId = opts?.targetMessageId
       const highlightTerms = opts?.highlightTerms
       // Always reload when jumping to a specific message; otherwise skip if
       // already viewing the same session.
       if (!sessionId) return false
-      if (targetMessageId === undefined && sessionId === currentSessionIdRef.current) {
+      if (
+        targetMessageId === undefined &&
+        !opts?.forceReload &&
+        sessionId === currentSessionIdRef.current
+      ) {
         return true
       }
       if (
@@ -826,7 +835,12 @@ export function useChatSession({
       // message, restore immediately + kick a background reload-and-merge
       // so any external-channel updates (IM / CLI / cron) made while we
       // were away converge into the cached view within ~1 RTT.
-      const cached = sessionCacheRef.current.get(sessionId)
+      // Imported rows are replaced on re-import, so a cached transcript cannot
+      // safely be merged with the database's new message IDs.
+      const imported =
+        sessionsRef.current.find((session) => session.id === sessionId)?.origin?.kind === "codex"
+      const cached =
+        imported || opts?.forceReload ? undefined : sessionCacheRef.current.get(sessionId)
       if (targetMessageId === undefined && cached) {
         failedSessionLoadsRef.current.delete(sessionId)
         const shouldRefreshCache = !loadingSessionsRef.current.has(sessionId)
@@ -849,8 +863,10 @@ export function useChatSession({
             sessionId,
             pageSize: PAGE_SIZE,
             sessionCacheRef,
+            shouldApply: () => switchVersionRef.current === version,
             setMessages: (msgs) => {
               if (
+                switchVersionRef.current === version &&
                 currentSessionIdRef.current === sessionId &&
                 !loadingSessionsRef.current.has(sessionId)
               ) {
@@ -858,6 +874,7 @@ export function useChatSession({
               }
             },
           }).then((refreshed) => {
+            if (switchVersionRef.current !== version) return
             if (refreshed) {
               failedSessionLoadsRef.current.delete(sessionId)
             } else {
@@ -1014,6 +1031,23 @@ export function useChatSession({
       t,
     ],
   )
+
+  const refreshImportedSessions = useCallback(async () => {
+    const importedIds = new Set(
+      sessionsRef.current
+        .filter((session) => session.origin?.kind === "codex")
+        .map((session) => session.id),
+    )
+    for (const sessionId of importedIds) clearPerSessionRefs(sessionId)
+    const activeId = currentSessionIdRef.current
+    if (activeId && importedIds.has(activeId)) {
+      setPendingScrollIntent(null)
+      setHasMore(false)
+      setHasMoreAfter(false)
+      setMessages([])
+      await handleSwitchSession(activeId, { forceReload: true })
+    }
+  }, [clearPerSessionRefs, handleSwitchSession, setHasMore, setHasMoreAfter])
 
   // Jump to a specific message within the *current* session. If the target
   // is already in the loaded window, just sets `pendingScrollIntent` to let
@@ -1187,6 +1221,7 @@ export function useChatSession({
     handleToggleSessionPinned,
     handleReorderAgents,
     handleSwitchSession,
+    refreshImportedSessions,
     handleNewChat,
     handleArchiveSession,
     handleLoadMore,
