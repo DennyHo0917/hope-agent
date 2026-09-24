@@ -240,7 +240,10 @@ fn parse_record(bytes: &[u8]) -> Result<ImportedRecord> {
                 !id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)
             });
             source_id = id.map(str::to_string);
-            created_at = entry["timestamp"].as_str().map(str::to_string);
+            created_at = Some(normalized_timestamp(
+                entry["timestamp"].as_str(),
+                "1970-01-01T00:00:00Z",
+            ));
             continue;
         }
         if entry["type"] != "response_item" || payload["type"] != "message" {
@@ -276,7 +279,10 @@ fn parse_record(bytes: &[u8]) -> Result<ImportedRecord> {
         if visible.is_empty() {
             continue;
         }
-        let fallback = created_at.as_deref().unwrap_or("1970-01-01T00:00:00Z");
+        let fallback = last_timestamp
+            .as_deref()
+            .or(created_at.as_deref())
+            .unwrap_or("1970-01-01T00:00:00Z");
         let timestamp = normalized_timestamp(entry["timestamp"].as_str(), fallback);
         last_timestamp = Some(timestamp.clone());
         messages.push(ImportedMessage {
@@ -286,7 +292,7 @@ fn parse_record(bytes: &[u8]) -> Result<ImportedRecord> {
         });
     }
     let source_id = source_id.context("missing Codex session ID")?;
-    let created_at = normalized_timestamp(created_at.as_deref(), "1970-01-01T00:00:00Z");
+    let created_at = created_at.unwrap_or_else(|| "1970-01-01T00:00:00Z".to_string());
     if messages.is_empty() {
         anyhow::bail!("no visible messages");
     }
@@ -598,6 +604,41 @@ mod tests {
             visible_user_text("<environment_context>hidden</environment_context>\n\n    code"),
             Some("\n    code")
         );
+    }
+
+    #[test]
+    fn invalid_timestamps_use_valid_metadata_or_prior_message() {
+        let lines = [
+            serde_json::json!({"type":"session_meta","timestamp":"invalid","payload":{"id":"invalid-time-source"}}),
+            serde_json::json!({"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Question"}]}}),
+            serde_json::json!({"type":"response_item","timestamp":"also-invalid","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Answer"}]}}),
+        ];
+        let jsonl = lines
+            .iter()
+            .map(serde_json::Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let record = parse_record(jsonl.as_bytes()).unwrap();
+        assert_eq!(record.created_at, "1970-01-01T00:00:00Z");
+        assert_eq!(record.updated_at, "1970-01-01T00:00:00Z");
+        assert!(record
+            .messages
+            .iter()
+            .all(|message| message.timestamp == "1970-01-01T00:00:00Z"));
+
+        let lines = [
+            serde_json::json!({"type":"session_meta","timestamp":"2025-01-01T00:00:00Z","payload":{"id":"missing-last-time"}}),
+            serde_json::json!({"type":"response_item","timestamp":"2026-01-01T00:00:00Z","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"Question"}]}}),
+            serde_json::json!({"type":"response_item","timestamp":"invalid","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Answer"}]}}),
+        ];
+        let jsonl = lines
+            .iter()
+            .map(serde_json::Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let record = parse_record(jsonl.as_bytes()).unwrap();
+        assert_eq!(record.messages[1].timestamp, "2026-01-01T00:00:00Z");
+        assert_eq!(record.updated_at, "2026-01-01T00:00:00Z");
     }
 
     #[test]
