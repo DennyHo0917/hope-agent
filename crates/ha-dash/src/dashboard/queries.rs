@@ -990,6 +990,26 @@ mod side_snapshot_tests {
                 params![now],
             )
             .expect("insert side session");
+            conn.execute(
+                "INSERT INTO sessions (
+                    id, title, agent_id, provider_name, model_id, created_at, updated_at
+                 ) VALUES ('import-1', 'Imported', 'ha-main', 'Ollama (local)', 'qwen3:8b', ?1, ?1)",
+                params![now],
+            )
+            .expect("insert imported session");
+            conn.execute(
+                "INSERT INTO messages (session_id, role, content, timestamp)
+                 VALUES ('import-1', 'user', 'imported', ?1)",
+                params![now],
+            )
+            .expect("insert imported message");
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'source-1', 'import-1', 'hash-1', ?1)",
+                params![now],
+            )
+            .expect("mark imported session");
 
             for (role, tokens_in, tokens_out, tool_name, is_error, is_side_snapshot) in [
                 ("user", 0, 0, None, 0, 1),
@@ -1045,6 +1065,8 @@ mod side_snapshot_tests {
 
         let session_list = crate::dashboard::detail_queries::query_session_list(&filter)
             .expect("query session list");
+        assert_eq!(session_list.len(), 1);
+        assert_eq!(session_list[0].id, "side-1");
         assert_eq!(session_list[0].message_count, 3);
         assert_eq!(session_list[0].total_tokens, 18);
         let message_list = crate::dashboard::detail_queries::query_message_list(&filter)

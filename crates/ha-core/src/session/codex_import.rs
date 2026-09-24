@@ -197,6 +197,7 @@ fn visible_user_text(mut text: &str) -> Option<&str> {
 fn parse_record(bytes: &[u8]) -> Result<ImportedRecord> {
     let text = std::str::from_utf8(bytes).context("JSONL is not UTF-8")?;
     let mut source_id = None;
+    let mut seen_metadata = false;
     let mut created_at = None;
     let mut messages = Vec::new();
     let mut unsupported_content = 0;
@@ -211,12 +212,13 @@ fn parse_record(bytes: &[u8]) -> Result<ImportedRecord> {
         let entry: Value = serde_json::from_str(line).context("invalid JSONL line")?;
         let payload = &entry["payload"];
         if entry["type"] == "session_meta" {
+            if seen_metadata {
+                anyhow::bail!("duplicate session metadata");
+            }
+            seen_metadata = true;
             let id = payload["id"].as_str().filter(|id| {
                 !id.is_empty() && id.len() <= 128 && !id.chars().any(char::is_control)
             });
-            if source_id.is_some() {
-                anyhow::bail!("duplicate session metadata");
-            }
             source_id = id.map(str::to_string);
             created_at = entry["timestamp"].as_str().map(str::to_string);
             continue;
@@ -518,6 +520,23 @@ mod tests {
         assert_eq!(record.messages.len(), 2);
         assert_eq!(record.messages[0].content, "Actual request");
         assert_eq!(record.messages[1].content, "Answer");
+    }
+
+    #[test]
+    fn duplicate_metadata_is_rejected_even_when_first_id_is_invalid() {
+        for first_id in [serde_json::Value::Null, serde_json::json!("")] {
+            let lines = [
+                serde_json::json!({"type":"session_meta","payload":{"id":first_id}}),
+                serde_json::json!({"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"unrelated"}]}}),
+                serde_json::json!({"type":"session_meta","payload":{"id":"valid-id"}}),
+            ];
+            let jsonl = lines
+                .iter()
+                .map(serde_json::Value::to_string)
+                .collect::<Vec<_>>()
+                .join("\n");
+            assert!(parse_record(jsonl.as_bytes()).is_err());
+        }
     }
 
     #[test]

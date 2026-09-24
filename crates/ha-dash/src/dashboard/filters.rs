@@ -34,6 +34,11 @@ pub(super) fn build_session_filter(
     // Incognito sessions never surface in Dashboard stats — by definition
     // they leave no audit trail.
     clauses.push(format!("{}.incognito = 0", session_alias));
+    // Imported Codex transcripts are owner-visible records, not Hope usage.
+    clauses.push(format!(
+        "NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = {}.id)",
+        session_alias
+    ));
 
     if let Some(message_alias) = message_alias {
         clauses.push(dashboard_message_scope(message_alias));
@@ -210,5 +215,7 @@ mod tests {
 
         let session_clause = build_session_filter(&filter, "s", None);
         assert!(!session_clause.where_sql.contains("is_side_snapshot"));
+        assert!(session_clause.where_sql.contains("session_import_sources"));
+        assert!(message_clause.where_sql.contains("session_import_sources"));
     }
 }
