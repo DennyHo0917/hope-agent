@@ -176,14 +176,14 @@ fn normalized_timestamp(raw: Option<&str>, fallback: &str) -> String {
 /// Remove only known leading runtime envelopes, preserving any actual prompt
 /// that follows them in the same content block.
 fn visible_user_text(mut text: &str) -> Option<&str> {
-    text = text.trim_start();
     loop {
-        let closing_tag = if text.starts_with("<recommended_plugins>") {
+        let candidate = text.trim_start();
+        let closing_tag = if candidate.starts_with("<recommended_plugins>") {
             Some("</recommended_plugins>")
-        } else if text.starts_with("<environment_context>") {
+        } else if candidate.starts_with("<environment_context>") {
             Some("</environment_context>")
-        } else if text.starts_with("# AGENTS.md instructions for ") {
-            if !text.contains("<INSTRUCTIONS>") {
+        } else if candidate.starts_with("# AGENTS.md instructions for ") {
+            if !candidate.contains("<INSTRUCTIONS>") {
                 break;
             }
             Some("</INSTRUCTIONS>")
@@ -193,11 +193,11 @@ fn visible_user_text(mut text: &str) -> Option<&str> {
         let Some(closing_tag) = closing_tag else {
             break;
         };
-        let Some(end) = text.find(closing_tag) else {
+        let Some(end) = candidate.find(closing_tag) else {
             break;
         };
         let end = end + closing_tag.len();
-        text = text[end..].trim_start();
+        text = candidate[end..].trim_start();
     }
     (!text.trim().is_empty()).then_some(text)
 }
@@ -549,6 +549,27 @@ mod tests {
             };
             assert_eq!(visible_user_text(text), Some(expected));
         }
+    }
+
+    #[test]
+    fn ordinary_user_prompt_preserves_leading_whitespace() {
+        let prompt = "\n    code block\n    second line";
+        assert_eq!(visible_user_text(prompt), Some(prompt));
+        assert_eq!(
+            visible_user_text("    <environment_context>unfinished"),
+            Some("    <environment_context>unfinished")
+        );
+        let lines = [
+            serde_json::json!({"type":"session_meta","payload":{"id":"whitespace-source"}}),
+            serde_json::json!({"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":prompt}]}}),
+        ];
+        let jsonl = lines
+            .iter()
+            .map(serde_json::Value::to_string)
+            .collect::<Vec<_>>()
+            .join("\n");
+        let record = parse_record(jsonl.as_bytes()).unwrap();
+        assert_eq!(record.messages[0].content, prompt);
     }
 
     #[test]
