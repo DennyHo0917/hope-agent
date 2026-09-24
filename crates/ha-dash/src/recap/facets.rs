@@ -78,7 +78,7 @@ pub fn resolve_candidates(
         }
     };
 
-    let sessions = session_db.list_sessions_for_recap(filters.agent_id.as_deref())?;
+    let sessions = session_db.list_sessions_excluding_imported(filters.agent_id.as_deref())?;
     let mut candidates: Vec<CandidateSession> = sessions
         .into_iter()
         .filter(|s| {

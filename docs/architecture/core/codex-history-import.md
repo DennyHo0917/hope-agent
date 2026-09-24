@@ -15,7 +15,7 @@
 - 来源根目录按 `CODEX_HOME`（若配置）或用户主目录下的 `.codex` 解析，只扫描 `sessions/**/*.jsonl` 与 `archived_sessions/**/*.jsonl` 的普通文件。拒绝越界的符号链接；不触碰 `auth.json`、配置、日志、缓存或项目文件。
 - `session_meta.payload.id` 是稳定来源 ID；缺少或重复 ID 的文件单独跳过并计入结果。保留时间戳；不导入 `cwd`、`base_instructions`、`world_state`、`turn_context`、`compacted`、`token_usage_record`。
 - 仅导入 `response_item` 中 `type=message` 且 `role=user|assistant` 的可见 `input_text` / `output_text`。Codex 可能把自身注入的 `AGENTS.md`、环境信息和插件推荐也写成 `role=user`；解析时剥离这些位于消息开头的完整运行时信封，保留其后的真实提问。按 JSONL 顺序保存。`developer` / `system`、推理、工具调用与结果、图片原始数据、事件和传输元数据不导入；不支持的内容类型计数并在结果中说明。标题取首条非空用户正文的短摘要，保留用户之后手动改的标题。
-- 每条导入消息以外部资料对待；Markdown 渲染遵循现有转义规则。导入不创建可供模型恢复的 `context_json`、工具状态、审批状态或执行队列。用户界面可查看和搜索副本；模型侧 `sessions_list` / `session_status` / `sessions_history` / `sessions_search`、`recall_memory(include_history=true)`、行为感知和回顾提取均排除导入记录，避免未经不可信资料封装的正文进入活跃对话。`@` 会话提及候选也排除导入记录，避免推荐无法由模型读取的会话。
+- 每条导入消息以外部资料对待；Markdown 渲染遵循现有转义规则。导入不创建可供模型恢复的 `context_json`、工具状态、审批状态或执行队列。用户界面可查看和搜索副本；模型侧 `sessions_list` / `session_status` / `sessions_history` / `sessions_search`、`recall_memory(include_history=true)`、行为感知和回顾提取均排除导入记录，避免未经不可信资料封装的正文进入活跃对话。`@` 会话提及与 IM `/sessions` 候选也排除导入记录；IM `/session` 解析和最终绑定入口拒绝导入记录，避免向远端聊天回放只读历史。
 
 ## 持久化与幂等
 

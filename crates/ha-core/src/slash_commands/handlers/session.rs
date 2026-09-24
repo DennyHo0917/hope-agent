@@ -196,7 +196,9 @@ pub fn handle_rename(
 /// open Cmd+F.
 pub fn handle_sessions(session_db: &Arc<SessionDB>, args: &str) -> Result<CommandResult, String> {
     let query = args.trim();
-    let all = session_db.list_sessions(None).map_err(|e| e.to_string())?;
+    let all = session_db
+        .list_sessions_excluding_imported(None)
+        .map_err(|e| e.to_string())?;
 
     // Friendly agent display names; one IO per /sessions, fall back to bare
     // ids on error. `list_agents` also reads memory counts we discard —
@@ -401,14 +403,19 @@ pub fn handle_session(
 /// message when the prefix is ambiguous or no match exists.
 fn resolve_session_id_or_prefix(session_db: &Arc<SessionDB>, arg: &str) -> Result<String, String> {
     if let Some(meta) = session_db.get_session(arg).map_err(|e| e.to_string())? {
+        if session_db
+            .is_codex_imported_session(&meta.id)
+            .map_err(|e| e.to_string())?
+        {
+            return Err("Imported Codex sessions cannot be attached to IM chats".into());
+        }
         return Ok(meta.id);
     }
-    // Fallback: prefix scan. `list_sessions(None)` already excludes
-    // incognito; `/sessions` further filters cron / subagent rows for the
-    // picker, but for raw resolution we tolerate any non-incognito session
-    // — the user explicitly typed the id, after all.
+    // Fallback: prefix scan. The list excludes incognito and imported rows;
+    // `/sessions` further filters cron / subagent rows for the picker, but
+    // raw resolution tolerates those when the user explicitly typed the id.
     let candidates: Vec<crate::session::SessionMeta> = session_db
-        .list_sessions(None)
+        .list_sessions_excluding_imported(None)
         .map_err(|e| e.to_string())?
         .into_iter()
         .filter(|s| s.id.starts_with(arg))
@@ -623,5 +630,44 @@ mod tests {
             side.forked_from_session_id.as_deref(),
             Some(source.id.as_str())
         );
+    }
+
+    #[test]
+    fn imported_sessions_are_neither_pickable_nor_attachable_by_id() {
+        let (_dir, db) = test_db();
+        let live = db.create_session("ha-main").unwrap();
+        db.update_session_title(&live.id, "needle live").unwrap();
+        db.append_message(&live.id, &NewMessage::user("needle"))
+            .unwrap();
+        for n in 0..=SESSION_PICKER_LIMIT {
+            let imported = db.create_session("ha-main").unwrap();
+            db.update_session_title(&imported.id, "needle imported")
+                .unwrap();
+            db.append_message(&imported.id, &NewMessage::user("needle"))
+                .unwrap();
+            db.with_conn_for_test(|conn| {
+                conn.execute(
+                    "INSERT INTO session_import_sources
+                     (provider, source_id, session_id, content_hash, imported_at)
+                     VALUES ('codex', ?1, ?2, 'hash', ?3)",
+                    rusqlite::params![n.to_string(), imported.id, chrono::Utc::now().to_rfc3339()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+            if n == 0 {
+                assert!(handle_session(&db, None, &imported.id).is_err());
+                assert!(handle_session(&db, None, &imported.id[..8]).is_err());
+            }
+        }
+
+        for query in ["", "needle"] {
+            let result = handle_sessions(&db, query).unwrap();
+            let Some(CommandAction::ShowSessionPicker { sessions }) = result.action else {
+                panic!("expected session picker");
+            };
+            assert_eq!(sessions.len(), 1, "query={query}");
+            assert_eq!(sessions[0].id, live.id);
+        }
     }
 }

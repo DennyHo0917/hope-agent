@@ -3852,9 +3852,12 @@ impl SessionDB {
         Ok(sessions)
     }
 
-    /// Recap extraction can send session transcripts to a model. Keep
-    /// externally imported records out of its candidate set.
-    pub fn list_sessions_for_recap(&self, agent_id: Option<&str>) -> Result<Vec<SessionMeta>> {
+    /// List sessions eligible for external or model-facing discovery. Owner
+    /// UI listings keep using `list_sessions` to show imported copies.
+    pub fn list_sessions_excluding_imported(
+        &self,
+        agent_id: Option<&str>,
+    ) -> Result<Vec<SessionMeta>> {
         let (sessions, _) = self.list_sessions_paged_inner(
             agent_id,
             ProjectFilter::All,
@@ -7766,8 +7769,8 @@ impl SessionDB {
     ///
     /// Used by the `/sessions <query>` picker so a common term doesn't lose
     /// matches just because one session has dozens of hits. Excludes
-    /// incognito sessions (the global-search invariant matches
-    /// `search_messages` with `session_id = None`).
+    /// incognito and imported sessions before LIMIT so IM pickers never
+    /// surface local-only transcript text or lose eligible results.
     pub fn search_distinct_session_snippets(
         &self,
         query: &str,
@@ -7799,6 +7802,7 @@ impl SessionDB {
                  WHERE s.incognito = 0
                    AND s.archived_at IS NULL
                    AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+                   AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)
                    AND COALESCE(s.title, '') LIKE ?1 ESCAPE '\\'
                  ORDER BY s.updated_at DESC
                  LIMIT {}",
@@ -7838,6 +7842,7 @@ impl SessionDB {
                        AND s.incognito = 0
                        AND s.archived_at IS NULL
                        AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+                       AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)
                  ) WHERE rn = 1
                  ORDER BY rank
                  LIMIT {}",
@@ -7875,6 +7880,7 @@ impl SessionDB {
                        AND s.incognito = 0
                        AND s.archived_at IS NULL
                        AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+                       AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)
                  ) WHERE rn = 1
                  ORDER BY rank
                  LIMIT {}",
