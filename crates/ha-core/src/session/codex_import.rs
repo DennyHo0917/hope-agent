@@ -11,6 +11,7 @@ use std::collections::{BinaryHeap, HashSet};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::SessionDB;
@@ -20,6 +21,10 @@ const MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_TOTAL_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_LINE_BYTES: usize = 4 * 1024 * 1024;
 const MAX_DEPTH: usize = 8;
+// The filesystem snapshot is read before the per-record SQLite transaction.
+// Serialize explicit import runs so a slower old scan cannot overwrite a
+// newer snapshot committed by another request in this process.
+static CODEX_IMPORT_LOCK: Mutex<()> = Mutex::new(());
 
 #[derive(Debug, Default, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -179,7 +184,7 @@ fn visible_user_text(mut text: &str) -> Option<&str> {
             Some("</environment_context>")
         } else if text.starts_with("# AGENTS.md instructions for ") {
             if !text.contains("<INSTRUCTIONS>") {
-                return None;
+                break;
             }
             Some("</INSTRUCTIONS>")
         } else {
@@ -188,7 +193,10 @@ fn visible_user_text(mut text: &str) -> Option<&str> {
         let Some(closing_tag) = closing_tag else {
             break;
         };
-        let end = text.find(closing_tag)? + closing_tag.len();
+        let Some(end) = text.find(closing_tag) else {
+            break;
+        };
+        let end = end + closing_tag.len();
         text = text[end..].trim_start();
     }
     (!text.trim().is_empty()).then_some(text)
@@ -406,6 +414,9 @@ impl SessionDB {
     }
 
     pub fn import_local_codex_sessions(&self) -> Result<CodexImportReport> {
+        let _import_guard = CODEX_IMPORT_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let root = codex_home()?;
         let mut files = BinaryHeap::new();
         let mut report = CodexImportReport::default();
@@ -479,7 +490,7 @@ impl SessionDB {
 #[cfg(test)]
 mod tests {
     use super::SessionDB;
-    use super::{collect_jsonl_files, parse_record, CodexImportReport};
+    use super::{collect_jsonl_files, parse_record, visible_user_text, CodexImportReport};
     use crate::session::NewMessage;
     use std::cmp::Reverse;
     use std::collections::BinaryHeap;
@@ -520,6 +531,24 @@ mod tests {
         assert_eq!(record.messages.len(), 2);
         assert_eq!(record.messages[0].content, "Actual request");
         assert_eq!(record.messages[1].content, "Answer");
+    }
+
+    #[test]
+    fn incomplete_envelope_like_user_text_is_preserved() {
+        for text in [
+            "<environment_context>my literal prompt",
+            "<recommended_plugins>my literal prompt",
+            "# AGENTS.md instructions for my own document",
+            "# AGENTS.md instructions for my own document\n<INSTRUCTIONS>unfinished",
+            "<environment_context>complete</environment_context>\n<recommended_plugins>unfinished",
+        ] {
+            let expected = if text.starts_with("<environment_context>complete") {
+                "<recommended_plugins>unfinished"
+            } else {
+                text
+            };
+            assert_eq!(visible_user_text(text), Some(expected));
+        }
     }
 
     #[test]
