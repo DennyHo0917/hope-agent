@@ -6086,6 +6086,9 @@ impl SessionDB {
         session_id: &str,
         working_dir: Option<String>,
     ) -> Result<Option<String>> {
+        if self.is_codex_imported_session(session_id)? {
+            anyhow::bail!("Imported Codex conversations are read-only");
+        }
         let canonical = crate::util::canonicalize_working_dir(working_dir.as_deref())?;
         let conn = self
             .conn

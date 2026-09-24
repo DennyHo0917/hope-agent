@@ -1940,6 +1940,9 @@ fn validated_target_path<'a>(
 }
 
 fn repo_context(db: &SessionDB, session_id: &str) -> Result<RepoContext> {
+    if db.is_codex_imported_session(session_id)? {
+        bail!("Imported Codex conversations are read-only");
+    }
     let meta = db
         .get_session(session_id)?
         .ok_or_else(|| anyhow!("session not found: {session_id}"))?;

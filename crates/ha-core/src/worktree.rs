@@ -614,6 +614,14 @@ impl SessionDB {
             let include_local_changes = input.include_local_changes;
             let bootstrap_request_id = input.bootstrap_request_id.clone();
             crate::blocking::run_blocking(move || -> Result<WorktreePrep> {
+                if db.is_codex_imported_session(&session_id)? {
+                    bail!("Imported Codex conversations are read-only");
+                }
+                if let Some(child_id) = child_session_id.as_deref() {
+                    if db.is_codex_imported_session(child_id)? {
+                        bail!("Imported Codex conversations are read-only");
+                    }
+                }
                 let meta = db
                     .get_session(&session_id)?
                     .ok_or_else(|| anyhow!("session not found: {session_id}"))?;
@@ -2263,6 +2271,58 @@ fn emit_worktree_changed(event: &str, worktree: &ManagedWorktree) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn imported_session_cannot_create_managed_worktree() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let db = std::sync::Arc::new(
+            SessionDB::open_ephemeral_for_test(&temp.path().join("sessions.db"))
+                .expect("open test db"),
+        );
+        let imported = db.create_session("ha-main").expect("imported session");
+        let live = db.create_session("ha-main").expect("live session");
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'worktree-source', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                params![imported.id],
+            )?;
+            Ok(())
+        })
+        .expect("mark imported session");
+
+        assert!(db
+            .update_session_working_dir(
+                &imported.id,
+                Some(temp.path().to_string_lossy().to_string()),
+            )
+            .expect_err("imported session cannot acquire a working directory")
+            .to_string()
+            .contains("read-only"));
+
+        for (session_id, child_session_id) in [
+            (imported.id.clone(), None),
+            (live.id, Some(imported.id.clone())),
+        ] {
+            let error = db
+                .create_managed_worktree(CreateManagedWorktreeInput {
+                    session_id,
+                    source_working_dir: Some(temp.path().to_string_lossy().to_string()),
+                    label: None,
+                    purpose: ManagedWorktreePurpose::Manual,
+                    workflow_run_id: None,
+                    child_session_id,
+                    base_ref: None,
+                    include_local_changes: false,
+                    bootstrap_request_id: None,
+                    bind_session_working_dir: false,
+                })
+                .await
+                .expect_err("imported session cannot create worktree");
+            assert!(error.to_string().contains("read-only"));
+        }
+    }
 
     fn git(cwd: &Path, args: &[&str]) {
         git_status(cwd, args).unwrap_or_else(|error| panic!("git {args:?}: {error:#}"));
