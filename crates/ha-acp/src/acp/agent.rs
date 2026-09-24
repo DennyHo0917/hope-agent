@@ -909,6 +909,18 @@ impl AcpAgent {
             Err(e) => return JsonRpcResponse::error(id.clone(), ERROR_INTERNAL, e.to_string()),
         };
 
+        match self.session_db.is_codex_imported_session(&req.session_id) {
+            Ok(true) => {
+                return JsonRpcResponse::error(
+                    id.clone(),
+                    ERROR_INVALID_PARAMS,
+                    "Imported Codex sessions cannot be loaded through ACP",
+                )
+            }
+            Ok(false) => {}
+            Err(e) => return JsonRpcResponse::error(id.clone(), ERROR_INTERNAL, e.to_string()),
+        }
+
         let agent_id = session_meta.agent_id.clone();
         persist_acp_ide_context(&self.session_db, &req.session_id, &req.meta);
 
@@ -968,6 +980,19 @@ impl AcpAgent {
                 return JsonRpcResponse::error(id.clone(), ERROR_INTERNAL, error.to_string())
             }
         };
+        match self.session_db.is_codex_imported_session(&req.session_id) {
+            Ok(true) => {
+                return JsonRpcResponse::error(
+                    id.clone(),
+                    ERROR_INVALID_PARAMS,
+                    "Imported Codex sessions cannot be resumed through ACP",
+                )
+            }
+            Ok(false) => {}
+            Err(error) => {
+                return JsonRpcResponse::error(id.clone(), ERROR_INTERNAL, error.to_string())
+            }
+        }
         let agent_id = session_meta.agent_id.clone();
         persist_acp_ide_context(&self.session_db, &req.session_id, &req.meta);
         if let Err(error) = self.validate_agent_runtime(&agent_id) {
@@ -1254,7 +1279,7 @@ impl AcpAgent {
             }
         };
 
-        let sessions = match self.session_db.list_sessions(None) {
+        let sessions = match self.session_db.list_sessions_excluding_imported(None) {
             Ok(s) => s,
             Err(e) => return JsonRpcResponse::error(id.clone(), ERROR_INTERNAL, e.to_string()),
         };
@@ -1574,6 +1599,66 @@ impl AcpAgent {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn imported_codex_sessions_are_not_listed_or_replayable_through_acp() {
+        let path = std::env::temp_dir().join(format!(
+            "ha-acp-imported-session-{}.sqlite3",
+            uuid::Uuid::new_v4()
+        ));
+        let db = Arc::new(SessionDB::open(&path).expect("open test db"));
+        let live = db.create_session("ha-main").expect("live session");
+        let imported = db.create_session("ha-main").expect("imported session");
+        {
+            let conn = rusqlite::Connection::open(&path).expect("open ledger db");
+            conn.execute_batch(
+                "CREATE TABLE channel_conversations (
+                    session_id TEXT PRIMARY KEY,
+                    channel_id TEXT,
+                    account_id TEXT,
+                    chat_id TEXT,
+                    chat_type TEXT,
+                    sender_name TEXT
+                )",
+            )
+            .expect("create channel projection");
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'source-1', ?1, 'hash-1', '2026-09-24T00:00:00Z')",
+                rusqlite::params![imported.id],
+            )
+            .expect("mark imported");
+        }
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("runtime");
+        let mut agent = AcpAgent::new(db, "ha-main".into(), false, runtime.handle().clone());
+        let id = serde_json::json!(1);
+
+        let listed = agent.do_list_sessions(&serde_json::json!({}), &id);
+        assert!(listed.error.is_none(), "{:?}", listed.error);
+        let listed_ids: Vec<&str> = listed.result.as_ref().unwrap()["sessions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|session| session["sessionId"].as_str())
+            .collect();
+        assert!(listed_ids.contains(&live.id.as_str()));
+        assert!(!listed_ids.contains(&imported.id.as_str()));
+
+        for response in [
+            agent.do_load_session(&serde_json::json!({ "sessionId": imported.id }), &id),
+            agent.do_resume_session(&serde_json::json!({ "sessionId": imported.id }), &id),
+        ] {
+            assert_eq!(response.error.unwrap().code, ERROR_INVALID_PARAMS);
+            assert!(agent.sessions.get(&imported.id).is_none());
+        }
+        drop(agent);
+        drop(runtime);
+        let _ = std::fs::remove_file(path);
+    }
 
     fn inbound(method: &str, session_id: &str) -> JsonRpcMessage {
         JsonRpcMessage {

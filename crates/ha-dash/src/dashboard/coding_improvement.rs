@@ -1635,10 +1635,13 @@ fn build_fact_filter(
 ) -> SqlFilter {
     let mut clauses = Vec::new();
     let mut params = Vec::new();
+    let import_exclusion = format!(
+        "NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = {session_alias}.id)"
+    );
 
     if allow_null_session {
         clauses.push(format!(
-            "({session_alias}.id IS NULL OR ({session_alias}.is_cron = 0 AND {session_alias}.parent_session_id IS NULL AND {session_alias}.incognito = 0 AND {session_alias}.kind NOT IN ('knowledge','eval_fixture')))"
+            "({session_alias}.id IS NULL OR ({session_alias}.is_cron = 0 AND {session_alias}.parent_session_id IS NULL AND {session_alias}.incognito = 0 AND {session_alias}.kind NOT IN ('knowledge','eval_fixture') AND {import_exclusion}))"
         ));
     } else {
         clauses.push(format!("{session_alias}.is_cron = 0"));
@@ -1647,6 +1650,7 @@ fn build_fact_filter(
         clauses.push(format!(
             "{session_alias}.kind NOT IN ('knowledge','eval_fixture')"
         ));
+        clauses.push(import_exclusion);
     }
 
     if let Some(start) = filter.start_date.as_ref().filter(|value| !value.is_empty()) {
@@ -2297,20 +2301,29 @@ mod tests {
     }
 
     #[test]
-    fn dashboard_excludes_incognito_sessions() {
+    fn dashboard_excludes_incognito_and_imported_sessions() {
         let (dir, db, _dash_guard) = test_db();
         let now = now_rfc3339();
         let regular = db.create_session(DEFAULT_AGENT_ID).unwrap();
         let incognito = db
             .create_session_with_project(DEFAULT_AGENT_ID, None, Some(true))
             .unwrap();
+        let imported = db.create_session(DEFAULT_AGENT_ID).unwrap();
 
         {
             let conn = rusqlite::Connection::open(dir.path().join("sessions.db"))
                 .expect("open fixture db");
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'source-1', ?1, 'hash-1', ?2)",
+                params![imported.id, now],
+            )
+            .unwrap();
             for (id, session_id) in [
                 ("wfr_regular", regular.id.as_str()),
                 ("wfr_incognito", incognito.id.as_str()),
+                ("wfr_imported", imported.id.as_str()),
             ] {
                 conn.execute(
                     "INSERT INTO workflow_runs (
@@ -2328,5 +2341,7 @@ mod tests {
         assert_eq!(dashboard.overview.total_sessions, 1);
         assert_eq!(dashboard.overview.workflow_runs, 1);
         assert_eq!(dashboard.overview.completed_workflows, 1);
+        assert_eq!(dashboard.by_project.len(), 1);
+        assert_eq!(dashboard.by_project[0].sessions, 1);
     }
 }

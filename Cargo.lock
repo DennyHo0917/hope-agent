@@ -3087,6 +3087,7 @@ dependencies = [
  "ha-core",
  "libc",
  "regex",
+ "rusqlite",
  "serde",
  "serde_json",
  "tokio",

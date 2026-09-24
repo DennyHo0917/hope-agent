@@ -263,6 +263,10 @@ pub async fn run_workflow_run(
         .run(move |db| db.get_workflow_run(&lookup_id))
         .await?
         .ok_or_else(|| AppError::not_found("workflow run not found"))?;
+    let run_id_for_check = run.id.clone();
+    db.run(move |db| db.ensure_workflow_run_session_writable(&run_id_for_check))
+        .await
+        .map_err(|e| AppError::bad_request(e.to_string()))?;
     ha_core::workflow::spawn_workflow_run_if_primary(
         db.clone(),
         run.id.clone(),

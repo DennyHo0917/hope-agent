@@ -413,6 +413,9 @@ pub(crate) fn ensure_tables(conn: &Connection) -> Result<()> {
 
 impl SessionDB {
     pub fn create_review_run(&self, input: &RunReviewInput, session_id: &str) -> Result<ReviewRun> {
+        if self.is_codex_imported_session(session_id)? {
+            bail!("Imported Codex conversations are read-only");
+        }
         let meta = self
             .get_session(session_id)?
             .ok_or_else(|| anyhow!("session not found: {session_id}"))?;
@@ -2200,6 +2203,44 @@ fn emit_review_event(event: &str, review_event: &ReviewEvent) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn imported_session_cannot_create_review_run() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let db = SessionDB::open_ephemeral_for_test(&temp.path().join("sessions.db"))
+            .expect("open test db");
+        let session = db.create_session("ha-main").expect("create session");
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "UPDATE sessions SET working_dir = ?2 WHERE id = ?1",
+                params![session.id, temp.path().to_string_lossy().to_string()],
+            )?;
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'review-source', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                params![session.id],
+            )?;
+            Ok(())
+        })
+        .expect("mark imported session with working directory");
+
+        assert!(db
+            .create_review_run(&RunReviewInput::default(), &session.id)
+            .expect_err("imported session cannot create review")
+            .to_string()
+            .contains("read-only"));
+        let run_count: i64 = db
+            .with_conn_for_test(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM review_runs WHERE session_id = ?1",
+                    params![session.id],
+                    |row| row.get(0),
+                )?)
+            })
+            .expect("count review runs");
+        assert_eq!(run_count, 0);
+    }
 
     fn change(before: &str, after: &str) -> WorkspaceGitFileChange {
         WorkspaceGitFileChange {

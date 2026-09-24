@@ -1137,6 +1137,16 @@ async fn chat_inner(
             meta.id
         }
     };
+    // Reject imported history before any UserPromptSubmit hook can run.
+    let sid_for_import_check = sid.clone();
+    if db
+        .run(move |db| db.is_codex_imported_session(&sid_for_import_check))
+        .await?
+    {
+        return Err(AppError::bad_request(
+            "Imported Codex conversations are read-only",
+        ));
+    }
     let _eval_session_guard = eval_context_pending
         .map(|context| {
             ha_core::eval_context::register_http_turn_session(&sid, context)

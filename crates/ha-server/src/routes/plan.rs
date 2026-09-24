@@ -161,17 +161,10 @@ pub async fn restore_plan_version(
 
 /// `POST /api/plan/{session_id}/rollback`
 pub async fn plan_rollback(Path(session_id): Path<String>) -> Result<Json<Value>, AppError> {
-    let checkpoint = plan::get_checkpoint_ref(&session_id)
+    let msg = plan::rollback_session_to_checkpoint(&session_id)
         .await
+        .map_err(|e| AppError::internal(e.to_string()))?
         .ok_or_else(|| AppError::bad_request("No git checkpoint found for this plan execution"))?;
-
-    let msg = plan::rollback_to_checkpoint(&checkpoint)?;
-
-    let mut map = plan::store().write().await;
-    if let Some(meta) = map.get_mut(&session_id) {
-        meta.checkpoint_ref = None;
-    }
-    drop(map);
 
     Ok(Json(json!({ "message": msg })))
 }

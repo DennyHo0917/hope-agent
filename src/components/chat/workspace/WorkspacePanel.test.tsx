@@ -32,7 +32,7 @@ import type {
   WorkspaceEnvironmentSnapshot,
 } from "@/lib/transport"
 import type { BackgroundJobSnapshot } from "@/types/background-jobs"
-import type { FileChangeMetadata, Message } from "@/types/chat"
+import type { FileChangeMetadata, Message, SessionMeta } from "@/types/chat"
 import type { SessionFileEntry } from "./useSessionFileChanges"
 import WorkspacePanel from "./WorkspacePanel"
 import type { GoalSnapshot, GoalWatchdogFinding } from "./useGoal"
@@ -1671,6 +1671,19 @@ function goalSnapshotWithClosurePacket(patch: Partial<GoalSnapshot> = {}): GoalS
 }
 
 describe("WorkspacePanel goal section", () => {
+  it("shows a read-only panel without autonomous controls for imported history", () => {
+    renderPanel(null, {
+      sessionMeta: {
+        id: "s1",
+        origin: { kind: "codex", id: "source-1", label: "Codex" },
+      } as SessionMeta,
+    })
+
+    expect(screen.getByText("chat.codexImportedReadOnly")).toBeInTheDocument()
+    expect(screen.queryByText("目标")).not.toBeInTheDocument()
+    expect(screen.queryByText("持续推进")).not.toBeInTheDocument()
+  })
+
   it("creates a goal with a selected domain workflow template", async () => {
     const template = domainWorkflowTemplate()
     const createdGoal: GoalSnapshot = {

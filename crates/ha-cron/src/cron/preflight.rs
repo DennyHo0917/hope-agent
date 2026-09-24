@@ -575,7 +575,9 @@ fn inspect_agent(
             report.block(CronPreflightIssueCode::SessionUnavailable);
             return;
         };
-        if !session.is_regular_chat() {
+        if !session.is_regular_chat()
+            || !matches!(session_db.is_codex_imported_session(session_id), Ok(false))
+        {
             report.block(CronPreflightIssueCode::SessionUnavailable);
             return;
         }
@@ -900,6 +902,47 @@ mod tests {
         assert_eq!(
             serde_json::to_value(CronConversationPreview::NewSession).unwrap()["kind"],
             "newSession"
+        );
+    }
+
+    #[test]
+    fn imported_conversation_cannot_be_scheduled() {
+        let dir = tempfile::tempdir().unwrap();
+        let session_db = SessionDB::open(&dir.path().join("sessions.db")).unwrap();
+        let session_id = session_db.create_session("ha-main").unwrap().id;
+        session_db
+            .with_conn_for_test(|conn| {
+                conn.execute(
+                    "INSERT INTO session_import_sources
+                     (provider, source_id, session_id, content_hash, imported_at)
+                     VALUES ('codex', 'source-1', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                    [session_id.as_str()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        let candidate = Candidate {
+            id: None,
+            project_id: None,
+            workspace: CronWorkspacePolicy::default(),
+            schedule: CronSchedule::Every {
+                interval_ms: 60_000,
+                start_at: None,
+            },
+            payload: CronPayload::SessionTurn {
+                session_id,
+                prompt: "continue".into(),
+            },
+            targets: Vec::new(),
+            permission: None,
+            sandbox: None,
+        };
+        let mut report = CronPreflightReport::new(CronPreflightOperation::Create);
+        inspect_agent(&candidate, None, &session_db, &mut report);
+        assert!(!report.can_proceed);
+        assert_eq!(
+            report.issues[0].code,
+            CronPreflightIssueCode::SessionUnavailable
         );
     }
 

@@ -5,6 +5,17 @@ use crate::AppState;
 use tauri::State;
 
 #[tauri::command]
+pub async fn import_local_codex_sessions_cmd(
+    state: State<'_, AppState>,
+) -> Result<session::CodexImportReport, CmdError> {
+    state
+        .session_db
+        .run(|db| db.import_local_codex_sessions())
+        .await
+        .map_err(Into::into)
+}
+
+#[tauri::command]
 pub async fn create_session_cmd(
     agent_id: Option<String>,
     project_id: Option<String>,

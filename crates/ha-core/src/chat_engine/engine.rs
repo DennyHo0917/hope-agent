@@ -737,6 +737,15 @@ pub async fn compact_session_now(
         event_sink,
     } = params;
 
+    let session_for_check = session_id.clone();
+    let imported = session_db
+        .run(move |db| db.is_codex_imported_session(&session_for_check))
+        .await
+        .map_err(|error| error.to_string())?;
+    if imported {
+        return Err("Imported Codex conversations are read-only".to_string());
+    }
+
     let persist_failed = |message: String| {
         persist_manual_context_compaction_failed(&session_db, &session_id, source);
         message

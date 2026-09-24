@@ -103,19 +103,10 @@ pub async fn restore_plan_version(session_id: String, file_path: String) -> Resu
 
 #[tauri::command]
 pub async fn plan_rollback(session_id: String) -> Result<String, CmdError> {
-    let checkpoint = plan::get_checkpoint_ref(&session_id)
+    plan::rollback_session_to_checkpoint(&session_id)
         .await
-        .ok_or_else(|| CmdError::msg("No git checkpoint found for this plan execution"))?;
-
-    let msg = plan::rollback_to_checkpoint(&checkpoint)?;
-
-    // Clear checkpoint ref after rollback
-    let mut map = plan::store().write().await;
-    if let Some(meta) = map.get_mut(&session_id) {
-        meta.checkpoint_ref = None;
-    }
-
-    Ok(msg)
+        .map_err(CmdError::from)?
+        .ok_or_else(|| CmdError::msg("No git checkpoint found for this plan execution"))
 }
 
 #[tauri::command]

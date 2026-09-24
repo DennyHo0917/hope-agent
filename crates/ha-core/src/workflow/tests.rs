@@ -86,6 +86,89 @@ fn create_run(db: &SessionDB) -> (String, String) {
     (session.id, run.id)
 }
 
+#[test]
+fn imported_session_rejects_workflow_creation_and_existing_run_launches() {
+    let (_dir, db) = temp_db();
+    let db = Arc::new(db);
+    let session = db.create_session("ha-main").expect("create session");
+    let create = || {
+        db.create_workflow_run(CreateWorkflowRunInput {
+            session_id: session.id.clone(),
+            kind: "general.workflow".into(),
+            execution_mode: "guarded".into(),
+            script_source: "export default async function main(workflow) {}".into(),
+            budget: json!({}),
+            parent_run_id: None,
+            origin: None,
+            goal_id: None,
+            goal_criterion_id: None,
+            worktree_id: None,
+        })
+    };
+    let draft = create().expect("create draft before import mark");
+    let paused = create().expect("create paused run before import mark");
+    db.transition_workflow_run(&paused.id, WorkflowRunState::Paused, Some("test"))
+        .expect("pause run");
+    let awaiting = create().expect("create awaiting run before import mark");
+    db.transition_workflow_run(
+        &awaiting.id,
+        WorkflowRunState::AwaitingApproval,
+        Some("test"),
+    )
+    .expect("await approval");
+
+    db.with_conn_for_test(|conn| {
+        conn.execute(
+            "INSERT INTO session_import_sources
+             (provider, source_id, session_id, content_hash, imported_at)
+             VALUES ('codex', 'source-workflow', ?1, 'hash', '2026-01-01T00:00:00Z')",
+            params![session.id],
+        )?;
+        Ok(())
+    })
+    .expect("mark imported");
+
+    assert!(create()
+        .expect_err("imported session cannot create workflow")
+        .to_string()
+        .contains("imported Codex session"));
+    for result in [
+        db.claim_workflow_run_for_launch(&draft.id, "test-owner"),
+        db.claim_workflow_run_for_recovery(&draft.id, "test-owner"),
+    ] {
+        assert!(result
+            .expect_err("imported run cannot be claimed")
+            .to_string()
+            .contains("read-only"));
+    }
+    assert!(db
+        .resume_workflow_run(&paused.id)
+        .expect_err("imported run cannot resume")
+        .to_string()
+        .contains("read-only"));
+    assert!(db
+        .approve_workflow_run(&awaiting.id)
+        .expect_err("imported run cannot be approved")
+        .to_string()
+        .contains("read-only"));
+    assert!(db
+        .list_recoverable_workflow_runs()
+        .expect("list recoverable")
+        .is_empty());
+    assert_eq!(
+        db.get_workflow_run(&paused.id).unwrap().unwrap().state,
+        WorkflowRunState::Paused
+    );
+    assert_eq!(
+        db.get_workflow_run(&awaiting.id).unwrap().unwrap().state,
+        WorkflowRunState::AwaitingApproval
+    );
+    assert!(run_workflow_script(db.clone(), &draft.id)
+        .expect_err("imported run cannot execute")
+        .to_string()
+        .contains("read-only"));
+}
+
 fn create_run_with_script(db: &SessionDB, script_source: &str) -> (String, String) {
     let session = db.create_session("ha-main").expect("create session");
     let run = db

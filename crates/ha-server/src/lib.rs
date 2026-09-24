@@ -316,6 +316,10 @@ fn build_router_with_cors(
                 .layer(DefaultBodyLimit::max(4 * 1024)),
         )
         // Sessions
+        .route(
+            "/sessions/import-codex-local",
+            post(routes::sessions::import_local_codex_sessions),
+        )
         .route("/sessions", post(routes::sessions::create_session))
         .route("/sessions", get(routes::sessions::list_sessions))
         .route(

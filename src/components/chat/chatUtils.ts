@@ -1282,8 +1282,9 @@ export async function reloadAndMergeSessionMessages(params: {
   pageSize: number
   sessionCacheRef: React.MutableRefObject<Map<string, Message[]>>
   setMessages: (msgs: Message[]) => void
+  shouldApply?: () => boolean
 }): Promise<boolean> {
-  const { sessionId, pageSize, sessionCacheRef, setMessages } = params
+  const { sessionId, pageSize, sessionCacheRef, setMessages, shouldApply } = params
   const existingAtRequestStart = sessionCacheRef.current.get(sessionId) ?? []
   const limit = Math.max(pageSize, existingAtRequestStart.length)
   try {
@@ -1291,6 +1292,7 @@ export async function reloadAndMergeSessionMessages(params: {
       "load_session_messages_latest_cmd",
       { sessionId, limit },
     )
+    if (shouldApply && !shouldApply()) return false
     const fresh = parseSessionMessages(msgs)
     const existing = sessionCacheRef.current.get(sessionId) ?? existingAtRequestStart
     const merged = preserveMessagesAppendedDuringReload(

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react"
 import { flushSync } from "react-dom"
 import { useTranslation } from "react-i18next"
+import { toast } from "sonner"
 import { IconTip } from "@/components/ui/tooltip"
 import { FloatingMenu } from "@/components/ui/floating-menu"
 import { ResizeHandleGlow } from "@/components/ui/resize-handle-glow"
@@ -8,6 +9,7 @@ import { SearchInput } from "@/components/ui/search-input"
 import { cn } from "@/lib/utils"
 import {
   Bot,
+  FileDown,
   ListCollapse,
   Loader2,
   MessageSquarePlus,
@@ -18,7 +20,7 @@ import {
 } from "lucide-react"
 import { getTransport } from "@/lib/transport-provider"
 import { logger } from "@/lib/logger"
-import type { SessionSearchResult, UnreadSessionTarget } from "@/types/chat"
+import type { CodexImportReport, SessionSearchResult, UnreadSessionTarget } from "@/types/chat"
 import {
   CHAT_SIDEBAR_MAX_WIDTH,
   CHAT_SIDEBAR_MIN_WIDTH,
@@ -76,6 +78,7 @@ export default function ChatSidebar({
   onSidebarCollapsedChange,
   onSwitchSession,
   onNewChat,
+  onImportComplete,
   onArchiveSession,
   onEditAgent,
   onToggleSessionPinned,
@@ -100,6 +103,7 @@ export default function ChatSidebar({
   )
   const layoutWidth = renderedWidth ?? panelWidth
   const [showNewChatMenu, setShowNewChatMenu] = useState(false)
+  const [importingCodex, setImportingCodex] = useState(false)
   const newChatMenuRef = useRef<HTMLDivElement>(null)
   const [sidebarDisplayMode, setSidebarDisplayMode] = useState<SidebarDisplayMode>(
     DEFAULT_SIDEBAR_DISPLAY_MODE,
@@ -150,6 +154,7 @@ export default function ChatSidebar({
   // ── History search ─────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<SessionSearchResult[] | null>(null)
+  const [searchRevision, setSearchRevision] = useState(0)
   const [searching, setSearching] = useState(false)
   const [unreadRevealTarget, setUnreadRevealTarget] = useState<
     (UnreadSessionTarget & { signal: number }) | null
@@ -263,6 +268,7 @@ export default function ChatSidebar({
   }, [sidebarDisplayMode])
 
   useEffect(() => {
+    let cancelled = false
     const q = searchQuery.trim()
     if (!q) {
       setSearchResults(null)
@@ -281,16 +287,19 @@ export default function ChatSidebar({
           // cron matches could fall outside the limit and never render.
           types: GLOBAL_SESSION_SEARCH_TYPES,
         })
-        setSearchResults(sortSessionSearchResults(results ?? []))
+        if (!cancelled) setSearchResults(sortSessionSearchResults(results ?? []))
       } catch (err) {
         logger.error("chat", "ChatSidebar::search", "search failed", err)
-        setSearchResults([])
+        if (!cancelled) setSearchResults([])
       } finally {
-        setSearching(false)
+        if (!cancelled) setSearching(false)
       }
     }, 300)
-    return () => clearTimeout(timer)
-  }, [searchQuery])
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [searchQuery, searchRevision])
 
   // Browsing pages must apply their ownership/type filters before LIMIT/OFFSET.
   // The global recent page remains a project-tree change signal and search
@@ -570,6 +579,64 @@ export default function ChatSidebar({
                 {t("chat.conversations")}
               </h2>
               <div className="ml-auto flex h-7 items-center gap-1">
+                <IconTip label={t("chat.codexImportAction")}>
+                  <button
+                    className="flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-surface-subtle hover:text-foreground disabled:opacity-50"
+                    aria-label={t("chat.codexImportAction")}
+                    disabled={importingCodex}
+                    onClick={async () => {
+                      setImportingCodex(true)
+                      try {
+                        const result = await getTransport().call<CodexImportReport>(
+                          "import_local_codex_sessions_cmd",
+                        )
+                        const summary = t("chat.codexImportSummary", {
+                          created: result.created,
+                          updated: result.updated,
+                          skipped: result.unchanged + result.skipped + result.failed,
+                        })
+                        if (result.failed > 0) toast.warning(summary)
+                        else toast.success(summary)
+                        // Re-import replaces message rows and their IDs, so
+                        // existing search hits cannot remain clickable.
+                        setSearchResults(null)
+                        setSearchRevision((revision) => revision + 1)
+                        await reloadSidebarSessions().catch((error) => {
+                          logger.warn(
+                            "chat",
+                            "ChatSidebar::reloadAfterCodexImport",
+                            "Sidebar reload failed",
+                            error,
+                          )
+                        })
+                        await Promise.resolve(onImportComplete?.()).catch((error) => {
+                          logger.warn(
+                            "chat",
+                            "ChatSidebar::refreshAfterCodexImport",
+                            "Imported conversation refresh failed",
+                            error,
+                          )
+                        })
+                      } catch (error) {
+                        logger.error(
+                          "chat",
+                          "ChatSidebar::importCodex",
+                          "Codex import failed",
+                          error,
+                        )
+                        toast.error(t("chat.codexImportFailed"))
+                      } finally {
+                        setImportingCodex(false)
+                      }
+                    }}
+                  >
+                    {importingCodex ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FileDown className="h-4 w-4" />
+                    )}
+                  </button>
+                </IconTip>
                 <IconTip label={t("chat.collapseSidebar")}>
                   <button
                     className="flex h-7 w-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-surface-subtle"

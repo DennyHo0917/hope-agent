@@ -927,6 +927,7 @@ export default function ChatScreen({
         : null,
     [session.sessions, session.currentSessionId],
   )
+  const isCodexImported = currentSessionMeta?.origin?.kind === "codex"
   const [sideChats, setSideChats] = useState<SessionMeta[]>([])
   const [sideChatStateSourceId, setSideChatStateSourceId] = useState<string | null>(null)
   const [activeSideChatId, setActiveSideChatId] = useState<string | null>(null)
@@ -949,6 +950,7 @@ export default function ChatScreen({
   const sideChatSeedNonceRef = useRef(0)
   const canUseSideChat =
     !!currentSessionMeta &&
+    !isCodexImported &&
     (currentSessionMeta.kind ?? "regular") === "regular" &&
     !currentSessionMeta.incognito &&
     !currentSessionMeta.channelInfo &&
@@ -1126,6 +1128,7 @@ export default function ChatScreen({
   }, [])
   const canScheduleCurrentSession =
     !!currentSessionMeta &&
+    !isCodexImported &&
     (currentSessionMeta.kind ?? "regular") === "regular" &&
     !currentSessionMeta.incognito &&
     !currentSessionMeta.channelInfo &&
@@ -4931,7 +4934,8 @@ export default function ChatScreen({
   // only when that composer is actually mounted (cron / subagent sessions have
   // no input box). When true, MessageList must suppress its own empty greeting
   // so the two don't overlap.
-  const heroComposerActive = emptySessionInputHero && !isCronSession && !isSubagentSession
+  const heroComposerActive =
+    emptySessionInputHero && !isCronSession && !isSubagentSession && !isCodexImported
 
   return (
     <>
@@ -4953,6 +4957,10 @@ export default function ChatScreen({
         onSidebarCollapsedChange={handleSidebarCollapsedChange}
         onSwitchSession={handleSwitchSession}
         onNewChat={handleStartNewChat}
+        onImportComplete={async () => {
+          await session.refreshImportedSessions()
+          await reloadSessions()
+        }}
         onArchiveSession={session.handleArchiveSession}
         onEditAgent={onOpenAgentSettings}
         onToggleSessionPinned={session.handleToggleSessionPinned}
@@ -5148,7 +5156,7 @@ export default function ChatScreen({
             reasoningEffort={reasoningEffort}
             loading={session.loading}
             compacting={compacting}
-            onCompactContext={runCompactContextForCurrentSession}
+            onCompactContext={isCodexImported ? undefined : runCompactContextForCurrentSession}
             onRenameSession={handleRenameSession}
             onViewSystemPrompt={loadSystemPrompt}
             systemPromptLoading={systemPromptLoading}
@@ -5291,7 +5299,7 @@ export default function ChatScreen({
                   onSwitchModel={handleMessageSwitchModel}
                   onViewSystemPrompt={loadSystemPrompt}
                   compacting={compacting}
-                  onCompactContext={runCompactContextForCurrentSession}
+                  onCompactContext={isCodexImported ? undefined : runCompactContextForCurrentSession}
                   onOpenDashboardTab={onOpenDashboardTab}
                   onViewChildSession={(sid) => {
                     setSubagentPreviewSessionId(sid)
@@ -5300,12 +5308,19 @@ export default function ChatScreen({
                   subagentRunsSnapshot={subagentRuns}
                   bottomInset={isCronSession || isSubagentSession}
                   onOpenDiff={handleMainOpenDiff}
-                  onResume={(message) => {
-                    void stream.handleSend(message)
-                  }}
-                  onForkFromMessage={handleForkFromMessage}
+                  onResume={
+                    isCodexImported
+                      ? undefined
+                      : (message) => {
+                          void stream.handleSend(message)
+                        }
+                  }
+                  onForkFromMessage={isCodexImported ? undefined : handleForkFromMessage}
                   onEditAndResend={
-                    !isCronSession && !isSubagentSession && stream.pendingSends.length === 0
+                    !isCodexImported &&
+                    !isCronSession &&
+                    !isSubagentSession &&
+                    stream.pendingSends.length === 0
                       ? handleEditAndResend
                       : undefined
                   }
@@ -5326,7 +5341,12 @@ export default function ChatScreen({
                 {/* Memory extraction toast — absolute-positioned above ChatInput
                  * so it doesn't shrink the MessageList scroll container when it
                  * appears/disappears. */}
-                {!isCronSession && !isSubagentSession && (
+                {isCodexImported && (
+                  <div className="border-t border-border/40 px-4 py-3 text-center text-sm text-muted-foreground">
+                    {t("chat.codexImportedReadOnly")}
+                  </div>
+                )}
+                {!isCronSession && !isSubagentSession && !isCodexImported && (
                   <div
                     className={cn(
                       "relative",
@@ -5822,7 +5842,7 @@ export default function ChatScreen({
                     availableModels={availableModels}
                     currentAgentId={session.currentAgentId}
                     compacting={compacting}
-                    onCompactContext={runCompactContextForCurrentSession}
+                    onCompactContext={isCodexImported ? undefined : runCompactContextForCurrentSession}
                     onCommandAction={handleCommandAction}
                     onViewSystemPrompt={loadSystemPrompt}
                     systemPromptLoading={systemPromptLoading}

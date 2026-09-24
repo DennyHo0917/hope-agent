@@ -202,6 +202,14 @@ fn attach_session_locked(
     sender_name: Option<&str>,
     chat_type: &ChatType,
 ) -> Result<Vec<Evictee>> {
+    let imported: bool = conn.query_row(
+        "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+        params![session_id],
+        |row| row.get(0),
+    )?;
+    if imported {
+        anyhow::bail!("Imported Codex sessions cannot be attached to IM chats");
+    }
     let now = chrono::Utc::now().to_rfc3339();
     let chat_type_s = chat_type_str(chat_type);
 
@@ -1099,6 +1107,77 @@ mod recent_active_tests {
         assert_eq!(reboundary.captured, 42);
         assert_eq!(reboundary.message_watermark, Some(later_watermark));
         assert!(reboundary.same_binding);
+    }
+
+    #[test]
+    fn imported_session_cannot_replace_an_im_attachment() {
+        let db = open_db("reject-imported-attach");
+        let live = db.session.create_session("ha-main").unwrap();
+        let imported = db.session.create_session("ha-main").unwrap();
+        db.channel
+            .attach_session(
+                "telegram",
+                "account",
+                "chat",
+                None,
+                &live.id,
+                ATTACH_SOURCE_ATTACH,
+                None,
+                None,
+                None,
+                &ChatType::Dm,
+            )
+            .unwrap();
+        db.session
+            .with_conn_for_test(|conn| {
+                conn.execute(
+                    "INSERT INTO session_import_sources
+                     (provider, source_id, session_id, content_hash, imported_at)
+                     VALUES ('codex', 'im-source', ?1, 'hash', ?2)",
+                    params![imported.id, Utc::now().to_rfc3339()],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        assert!(db
+            .channel
+            .attach_session(
+                "telegram",
+                "account",
+                "chat",
+                None,
+                &imported.id,
+                ATTACH_SOURCE_ATTACH,
+                None,
+                None,
+                None,
+                &ChatType::Dm,
+            )
+            .is_err());
+        assert!(db
+            .channel
+            .attach_session_with_boundary(
+                "telegram",
+                "account",
+                "chat",
+                None,
+                &imported.id,
+                ATTACH_SOURCE_HANDOVER,
+                None,
+                None,
+                None,
+                &ChatType::Dm,
+                || (),
+            )
+            .is_err());
+        assert_eq!(
+            db.channel
+                .get_session("telegram", "account", "chat", None)
+                .unwrap()
+                .as_deref(),
+            Some(live.id.as_str())
+        );
     }
 
     #[test]

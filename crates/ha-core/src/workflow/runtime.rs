@@ -1405,6 +1405,7 @@ fn prepare_workflow_script_launch(db: &SessionDB, run_id: &str) -> Result<Script
     let run = db
         .get_workflow_run(run_id)?
         .ok_or_else(|| anyhow!("workflow run {} not found", run_id))?;
+    db.ensure_workflow_run_session_writable(run_id)?;
 
     if run.state == WorkflowRunState::Completed {
         return Ok(ScriptLaunchPrep::AlreadyCompleted(Box::new(

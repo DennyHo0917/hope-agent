@@ -8,6 +8,7 @@ pub use acp_db::{AcpRun, AcpRunStatus};
 mod artifacts;
 mod autonomy_pause;
 pub(crate) mod cleanup_watcher;
+mod codex_import;
 mod context_compaction_recovery;
 pub(crate) mod context_projection;
 pub(crate) mod db;
@@ -33,6 +34,7 @@ pub use autonomy_pause::{
     ForegroundStopAdmission, SessionAutonomyPause, SessionAutonomyResumeOutcome,
     FOREGROUND_STOP_FENCE_ERROR,
 };
+pub use codex_import::CodexImportReport;
 pub(crate) use context_compaction_recovery::{
     claim_incognito_tier3_recovery, clear_incognito_capacity_projection_recovery,
     clear_incognito_tier3_recovery, exhaust_incognito_tier3_recovery,

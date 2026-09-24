@@ -22460,6 +22460,7 @@ export default function WorkspacePanel({
   integrated = false,
 }: WorkspacePanelProps) {
   const { t } = useTranslation()
+  const readOnlyImported = sessionMeta?.origin?.kind === "codex"
   const { files, sources, browser, filesTruncated, sourcesTruncated, browserTruncated } =
     useWorkspaceArtifacts(sessionId, messages, { incognito, turnActive })
   const ownedWorkflowRunsState = useWorkflowRuns(sessionId, {
@@ -22574,6 +22575,10 @@ export default function WorkspacePanel({
       {/* 上下边缘柔化淡出 —— 内容滚到边界时渐隐不硬切（mask 渐变到透明，露出面板底色）。
           Tauri = WebKit,补 `-webkit-mask-image` 兜底。 */}
       <div className={cn("flex-1 space-y-2 overflow-auto p-2", PANEL_SCROLL_FADE)}>
+        {readOnlyImported ? (
+          <EmptyHint>{t("chat.codexImportedReadOnly")}</EmptyHint>
+        ) : (
+          <>
         <EnvironmentSection
           sessionId={sessionId}
           sessionMeta={sessionMeta}
@@ -22822,6 +22827,8 @@ export default function WorkspacePanel({
         />
 
         <CodingTrendSection sessionId={sessionId} incognito={incognito} turnActive={turnActive} />
+          </>
+        )}
       </div>
     </div>
   )

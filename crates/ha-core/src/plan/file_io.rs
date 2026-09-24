@@ -130,6 +130,7 @@ pub(crate) fn plan_file_path(session_id: &str) -> Result<std::path::PathBuf> {
 }
 
 pub fn save_plan_file(session_id: &str, content: &str) -> Result<String> {
+    super::ensure_writable_session(session_id)?;
     let dir = session_plans_dir_for(session_id)?;
     std::fs::create_dir_all(&dir)?;
     let path = plan_file_path(session_id)?;

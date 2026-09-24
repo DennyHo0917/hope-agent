@@ -299,13 +299,7 @@ pub(crate) async fn tool_sessions_list(args: &Value) -> Result<String> {
     let db = crate::get_session_db()
         .ok_or_else(|| anyhow::anyhow!("Session database not initialized"))?;
 
-    let sessions = db.list_sessions(agent_id)?;
-
-    let filtered: Vec<_> = sessions
-        .into_iter()
-        .filter(|s| include_cron || !s.is_cron)
-        .take(limit)
-        .collect();
+    let filtered = db.list_sessions_for_model(agent_id, include_cron, limit)?;
 
     if filtered.is_empty() {
         return Ok("No sessions found.".to_string());
@@ -344,6 +338,9 @@ pub(crate) async fn tool_session_status(args: &Value) -> Result<String> {
 
     match db.get_session(session_id)? {
         Some(s) => {
+            if db.is_codex_imported_session(session_id)? {
+                return Ok("Imported Codex sessions are available only in the owner UI.".into());
+            }
             let title = s.title.as_deref().unwrap_or("(untitled)");
             let provider = s.provider_name.as_deref().unwrap_or("unknown");
             let model = s.model_id.as_deref().unwrap_or("unknown");
@@ -418,6 +415,9 @@ pub(crate) async fn tool_sessions_history(
     let session = db
         .get_session(session_id)?
         .ok_or_else(|| anyhow::anyhow!("Session '{}' not found", session_id))?;
+    if db.is_codex_imported_session(session_id)? {
+        return Ok("Imported Codex sessions are available only in the owner UI.".into());
+    }
     if is_cross_session && session.incognito {
         return Ok(format!(
             "Refusing to read incognito session '{}' from another session.",
@@ -584,7 +584,7 @@ pub(crate) async fn tool_sessions_search(
                     "Refusing global session search from an incognito session. Search the current session explicitly instead.".to_string(),
                 );
             }
-            db.search_message_content(
+            db.search_message_content_for_model(
                 query,
                 None,
                 None,
@@ -615,6 +615,9 @@ pub(crate) async fn tool_sessions_search(
             let target = db
                 .get_session(&session_id)?
                 .ok_or_else(|| anyhow::anyhow!("Session '{}' not found", session_id))?;
+            if db.is_codex_imported_session(&session_id)? {
+                return Ok("Imported Codex sessions are available only in the owner UI.".into());
+            }
             if target.incognito && ctx.session_id.as_deref() != Some(session_id.as_str()) {
                 return Ok(format!(
                     "Refusing to search incognito session '{}' from another session.",
@@ -622,7 +625,7 @@ pub(crate) async fn tool_sessions_search(
                 ));
             }
 
-            db.search_message_content(query, None, Some(&session_id), None, limit)?
+            db.search_message_content_for_model(query, None, Some(&session_id), None, limit)?
         }
         other => {
             return Ok(format!(
@@ -704,7 +707,9 @@ pub(crate) async fn tool_sessions_send(
                     target_session_id_owned
                 )));
             }
-            if !session.is_regular_chat() {
+            if !session.is_regular_chat()
+                || db.is_codex_imported_session(&target_session_id_owned)?
+            {
                 return Ok(Err(format!(
                     "Refusing to send to non-regular session '{}'.",
                     target_session_id_owned
@@ -960,7 +965,9 @@ async fn start_proactive_turn(
             .ok_or_else(|| {
                 anyhow::anyhow!("Target session '{}' no longer exists", target_session_id)
             })?;
-        if !live.is_regular_chat() {
+        if !live.is_regular_chat()
+            || db_for_live_check.is_codex_imported_session(&target_session_id)?
+        {
             anyhow::bail!(
                 "Target session '{}' is no longer a regular session",
                 target_session_id

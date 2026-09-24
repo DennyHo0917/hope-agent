@@ -766,12 +766,25 @@ impl SessionDB {
             }
             return Err(anyhow!("session does not exist"));
         }
+        let imported: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+            params![input.session_id],
+            |row| row.get(0),
+        )?;
+        if imported {
+            if input.source == QueuedTurnMessageSource::Scheduled {
+                return Err(anyhow!(SCHEDULED_TARGET_INELIGIBLE_ERROR));
+            }
+            return Err(anyhow!("imported session is read-only"));
+        }
         if input.source == QueuedTurnMessageSource::Scheduled {
             let eligible: bool = tx.query_row(
                 "SELECT EXISTS(
                     SELECT 1 FROM sessions
                     WHERE id = ?1 AND is_cron = 0 AND parent_session_id IS NULL
                       AND incognito = 0 AND kind = 'regular' AND archived_at IS NULL
+                      AND NOT EXISTS (SELECT 1 FROM session_import_sources
+                                      WHERE session_id = sessions.id)
                  )",
                 params![input.session_id],
                 |row| row.get(0),
@@ -944,6 +957,14 @@ impl SessionDB {
         };
         let mut conn = self.conn.lock().map_err(|e| anyhow!("Lock error: {e}"))?;
         let tx = conn.transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)?;
+        let imported: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+            params![session_id],
+            |row| row.get(0),
+        )?;
+        if imported {
+            return Err(anyhow!("Imported Codex conversations are read-only"));
+        }
         let stop_admission = match requested_stop_admission {
             Some(admission) => {
                 if !super::autonomy_pause::foreground_stop_admission_is_current_with_conn(
@@ -2329,6 +2350,68 @@ impl SessionDB {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn imported_session_rejects_every_queued_message_source_before_persistence() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("sessions.db");
+        let db = SessionDB::open(&path).unwrap();
+        let session_id = db.create_session("ha-main").unwrap().id;
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'source-1', ?1, 'hash-1', '2026-09-24T00:00:00Z')",
+                params![session_id],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+
+        for source in [
+            QueuedTurnMessageSource::Desktop,
+            QueuedTurnMessageSource::Http,
+        ] {
+            let mut input = queued(&session_id, source.as_str());
+            input.source = source;
+            assert!(db
+                .enqueue_turn_user_message(input)
+                .unwrap_err()
+                .to_string()
+                .contains("imported session is read-only"));
+            assert!(db
+                .reserve_direct_turn_admission(&session_id, source.as_str(), source, None)
+                .unwrap_err()
+                .to_string()
+                .contains("Imported Codex conversations are read-only"));
+        }
+        assert!(
+            enqueue_scheduled(&db, scheduled(&session_id, "scheduled", "1"))
+                .unwrap_err()
+                .to_string()
+                .contains(SCHEDULED_TARGET_INELIGIBLE_ERROR)
+        );
+        let queued_count: i64 = db
+            .with_conn_for_test(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM queued_turn_user_messages WHERE session_id = ?1",
+                    params![session_id],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(queued_count, 0);
+        let direct_count: i64 = db
+            .with_conn_for_test(|conn| {
+                Ok(conn.query_row(
+                    "SELECT COUNT(*) FROM direct_turn_admissions WHERE session_id = ?1",
+                    params![session_id],
+                    |row| row.get(0),
+                )?)
+            })
+            .unwrap();
+        assert_eq!(direct_count, 0);
+    }
 
     fn queued(session_id: &str, request_id: &str) -> NewQueuedTurnMessage {
         NewQueuedTurnMessage {

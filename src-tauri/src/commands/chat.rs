@@ -589,6 +589,15 @@ pub async fn chat(
             meta.id
         }
     };
+    // A rejected imported turn must not run UserPromptSubmit or later hooks.
+    // Check before session mutations, queue admission, and prompt preflight.
+    let sid_for_import_check = sid.clone();
+    if db
+        .run(move |db| db.is_codex_imported_session(&sid_for_import_check))
+        .await?
+    {
+        return Err(CmdError::msg("Imported Codex conversations are read-only"));
+    }
     let agent_def = agent_loader::load_agent(&current_agent_id).ok();
 
     let requested_effort = reasoning_effort

@@ -25,5 +25,8 @@ regex = { workspace = true }
 libc = "0.2"
 which = "8"
 
+[dev-dependencies]
+rusqlite = { workspace = true }
+
 [lints]
 workspace = true

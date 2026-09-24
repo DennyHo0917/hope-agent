@@ -1142,6 +1142,24 @@ impl SessionDB {
         if !has_origin_json {
             conn.execute_batch("ALTER TABLE sessions ADD COLUMN origin_json TEXT;")?;
         }
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS session_import_sources (
+                provider TEXT NOT NULL,
+                source_id TEXT NOT NULL,
+                session_id TEXT NOT NULL UNIQUE REFERENCES sessions(id) ON DELETE CASCADE,
+                content_hash TEXT NOT NULL,
+                imported_at TEXT NOT NULL,
+                PRIMARY KEY (provider, source_id)
+            );
+            CREATE TRIGGER IF NOT EXISTS block_imported_session_message_insert
+            BEFORE INSERT ON messages
+            WHEN EXISTS (SELECT 1 FROM session_import_sources
+                         WHERE session_id = NEW.session_id)
+                 AND COALESCE(NEW.source, '') != 'codex_import'
+            BEGIN
+                SELECT RAISE(ABORT, 'imported session is read-only');
+            END;",
+        )?;
 
         Self::ensure_model_usage_table(&conn)?;
         const SCHEMA_FLAG_MODEL_USAGE_BACKFILLED: i64 = 0x4;
@@ -3186,6 +3204,14 @@ impl SessionDB {
             if incognito != 0 {
                 anyhow::bail!("incognito sessions cannot be forked");
             }
+            let imported: bool = tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+                params![source_session_id],
+                |row| row.get(0),
+            )?;
+            if imported {
+                anyhow::bail!("imported Codex sessions cannot be forked");
+            }
             // Regular top-level chats and design-space threads are forkable; the
             // latter产物仍是设计线程（补建 design_chat_threads 锚点见下）。cron / 子会话 /
             // 其它隐藏 kind（side / knowledge / eval_fixture）与 incognito 仍拒。侧聊只允许
@@ -3771,6 +3797,9 @@ impl SessionDB {
 
     /// Move a session to a project (or remove it from the current project when `project_id` is `None`).
     pub fn set_session_project(&self, session_id: &str, project_id: Option<&str>) -> Result<()> {
+        if self.is_codex_imported_session(session_id)? {
+            anyhow::bail!("Imported Codex conversations are read-only");
+        }
         let conn = self
             .conn
             .lock()
@@ -3824,6 +3853,52 @@ impl SessionDB {
         let (sessions, _) =
             self.list_sessions_paged(agent_id, ProjectFilter::All, None, None, None)?;
         Ok(sessions)
+    }
+
+    /// List sessions eligible for external or model-facing discovery. Owner
+    /// UI listings keep using `list_sessions` to show imported copies.
+    pub fn list_sessions_excluding_imported(
+        &self,
+        agent_id: Option<&str>,
+    ) -> Result<Vec<SessionMeta>> {
+        let (sessions, _) = self.list_sessions_paged_inner(
+            agent_id,
+            ProjectFilter::All,
+            ParentSessionFilter::All,
+            None,
+            None,
+            None,
+            "s.updated_at DESC",
+            false,
+            PinnedSessionFilter::All,
+            true,
+        )?;
+        Ok(sessions)
+    }
+
+    /// Model-facing discovery excludes externally imported transcripts. Owner
+    /// UI listings continue to use `list_sessions` and can display the copies.
+    pub fn list_sessions_for_model(
+        &self,
+        agent_id: Option<&str>,
+        include_cron: bool,
+        limit: usize,
+    ) -> Result<Vec<SessionMeta>> {
+        let conn = self.read_conn()?;
+        let mut sql = format!(
+            "{} WHERE s.incognito = 0 AND s.archived_at IS NULL
+             AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+             AND (?1 IS NULL OR s.agent_id = ?1)
+             AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)",
+            session_meta_select()
+        );
+        if !include_cron {
+            sql.push_str(" AND s.is_cron = 0");
+        }
+        sql.push_str(" ORDER BY s.updated_at DESC LIMIT ?2");
+        let mut stmt = conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![agent_id, limit as i64], Self::row_to_session_meta)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
     /// List the durable side conversations owned by one regular source session.
@@ -3896,6 +3971,7 @@ impl SessionDB {
             "s.updated_at DESC",
             false,
             PinnedSessionFilter::All,
+            false,
         )
     }
 
@@ -3925,6 +4001,7 @@ impl SessionDB {
             // timeline, never the main sidebar list.
             true,
             pinned_filter,
+            false,
         )
     }
 
@@ -3933,8 +4010,21 @@ impl SessionDB {
     /// cannot be consumed by cron / subagent / channel / incognito / knowledge
     /// sessions before the caller gets a chance to filter them.
     pub fn list_recent_regular_chats(&self, limit: u32) -> Result<(Vec<SessionMeta>, u32)> {
+        self.list_recent_regular_chats_inner(limit, false)
+    }
+
+    fn list_recent_regular_chats_inner(
+        &self,
+        limit: u32,
+        exclude_imported: bool,
+    ) -> Result<(Vec<SessionMeta>, u32)> {
         let conn = self.read_conn()?;
-        let regular_where = format!(" WHERE {}", regular_session_scope_sql("s"));
+        let mut regular_where = format!(" WHERE {}", regular_session_scope_sql("s"));
+        if exclude_imported {
+            regular_where.push_str(
+                " AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)",
+            );
+        }
         let count_sql = format!("SELECT COUNT(*) FROM sessions s{regular_where}");
         let total: u32 = conn.query_row(&count_sql, [], |r| r.get::<_, u32>(0))?;
         let sql = format!(
@@ -3967,7 +4057,8 @@ impl SessionDB {
 
         let candidate_limit = limit.saturating_add(u32::from(exclude_session_id.is_some()));
         let mut candidates = if query.trim().is_empty() {
-            self.list_recent_regular_chats(candidate_limit)?.0
+            self.list_recent_regular_chats_inner(candidate_limit, true)?
+                .0
         } else {
             let matches =
                 self.search_distinct_regular_session_ids(query, candidate_limit as usize)?;
@@ -4004,7 +4095,10 @@ impl SessionDB {
         }
 
         let conn = self.read_conn()?;
-        let session_scope = regular_session_scope_sql("s");
+        let session_scope = format!(
+            "{} AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)",
+            regular_session_scope_sql("s")
+        );
         let mut results = Vec::new();
         let mut seen = HashSet::new();
 
@@ -4123,6 +4217,7 @@ impl SessionDB {
         order_by: &str,
         exclude_cron: bool,
         pinned_filter: PinnedSessionFilter,
+        exclude_imported: bool,
     ) -> Result<(Vec<SessionMeta>, u32)> {
         // Sidebar list is a hot read during streaming — use the read pool so a
         // concurrent message-append write doesn't block it.
@@ -4183,6 +4278,12 @@ impl SessionDB {
         where_clauses
             .push("s.kind NOT IN ('side','knowledge','design','eval_fixture')".to_string());
         where_clauses.push("s.archived_at IS NULL".to_string());
+        if exclude_imported {
+            where_clauses.push(
+                "NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)"
+                    .to_string(),
+            );
+        }
 
         // Cron run sessions live in the cron panel's "conversations" timeline,
         // never the main sidebar list — hide them when the sidebar asks.
@@ -5985,6 +6086,9 @@ impl SessionDB {
         session_id: &str,
         working_dir: Option<String>,
     ) -> Result<Option<String>> {
+        if self.is_codex_imported_session(session_id)? {
+            anyhow::bail!("Imported Codex conversations are read-only");
+        }
         let canonical = crate::util::canonicalize_working_dir(working_dir.as_deref())?;
         let conn = self
             .conn
@@ -7293,7 +7397,7 @@ impl SessionDB {
         types: Option<&[SessionTypeFilter]>,
         limit: usize,
     ) -> Result<Vec<SessionSearchResult>> {
-        self.search_messages_inner(query, agent_id, session_id, types, limit, true)
+        self.search_messages_inner(query, agent_id, session_id, types, limit, true, false)
     }
 
     /// Search persisted chat message content only.
@@ -7309,7 +7413,20 @@ impl SessionDB {
         types: Option<&[SessionTypeFilter]>,
         limit: usize,
     ) -> Result<Vec<SessionSearchResult>> {
-        self.search_messages_inner(query, agent_id, session_id, types, limit, false)
+        self.search_messages_inner(query, agent_id, session_id, types, limit, false, false)
+    }
+
+    /// Model-facing history search excludes imported transcripts while owner
+    /// UI search remains able to find them.
+    pub fn search_message_content_for_model(
+        &self,
+        query: &str,
+        agent_id: Option<&str>,
+        session_id: Option<&str>,
+        types: Option<&[SessionTypeFilter]>,
+        limit: usize,
+    ) -> Result<Vec<SessionSearchResult>> {
+        self.search_messages_inner(query, agent_id, session_id, types, limit, false, true)
     }
 
     fn search_messages_inner(
@@ -7320,6 +7437,7 @@ impl SessionDB {
         types: Option<&[SessionTypeFilter]>,
         limit: usize,
         include_title_matches: bool,
+        exclude_imported: bool,
     ) -> Result<Vec<SessionSearchResult>> {
         if limit == 0 {
             return Ok(Vec::new());
@@ -7336,6 +7454,13 @@ impl SessionDB {
         // parameter first, then appends these shared filters.
         let mut where_clauses: Vec<String> = Vec::new();
         let mut filter_params: Vec<Box<dyn rusqlite::types::ToSql>> = Vec::new();
+
+        if exclude_imported {
+            where_clauses.push(
+                "NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)"
+                    .to_string(),
+            );
+        }
 
         if let Some(aid) = agent_id {
             where_clauses.push("s.agent_id = ?".to_string());
@@ -7650,8 +7775,8 @@ impl SessionDB {
     ///
     /// Used by the `/sessions <query>` picker so a common term doesn't lose
     /// matches just because one session has dozens of hits. Excludes
-    /// incognito sessions (the global-search invariant matches
-    /// `search_messages` with `session_id = None`).
+    /// incognito and imported sessions before LIMIT so IM pickers never
+    /// surface local-only transcript text or lose eligible results.
     pub fn search_distinct_session_snippets(
         &self,
         query: &str,
@@ -7683,6 +7808,7 @@ impl SessionDB {
                  WHERE s.incognito = 0
                    AND s.archived_at IS NULL
                    AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+                   AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)
                    AND COALESCE(s.title, '') LIKE ?1 ESCAPE '\\'
                  ORDER BY s.updated_at DESC
                  LIMIT {}",
@@ -7722,6 +7848,7 @@ impl SessionDB {
                        AND s.incognito = 0
                        AND s.archived_at IS NULL
                        AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+                       AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)
                  ) WHERE rn = 1
                  ORDER BY rank
                  LIMIT {}",
@@ -7759,6 +7886,7 @@ impl SessionDB {
                        AND s.incognito = 0
                        AND s.archived_at IS NULL
                        AND s.kind NOT IN ('side','knowledge','design','eval_fixture')
+                       AND NOT EXISTS (SELECT 1 FROM session_import_sources src WHERE src.session_id = s.id)
                  ) WHERE rn = 1
                  ORDER BY rank
                  LIMIT {}",
@@ -8624,6 +8752,23 @@ mod tests {
         set_session_updated_at(&db, &other.id, "2026-05-02T00:00:00Z");
         set_session_updated_at(&db, &channel.id, "2026-05-03T00:00:00Z");
 
+        let imported = db.create_session("ha-main").expect("imported session");
+        db.update_session_title(&imported.id, "alpha imported")
+            .expect("set imported title");
+        db.append_message(&imported.id, &NewMessage::user("alpha imported"))
+            .expect("append imported message");
+        {
+            let conn = db.conn.lock().expect("lock connection");
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'mention-source', ?1, 'hash', ?2)",
+                rusqlite::params![imported.id, chrono::Utc::now().to_rfc3339()],
+            )
+            .expect("mark imported");
+        }
+        set_session_updated_at(&db, &imported.id, "2026-05-04T00:00:00Z");
+
         let recent = db
             .list_session_mention_candidates("", Some(&other.id), 1)
             .expect("list recent mention candidates");
@@ -8646,6 +8791,7 @@ mod tests {
         assert!(searched_ids.contains(chatty.id.as_str()));
         assert!(searched_ids.contains(other.id.as_str()));
         assert!(!searched_ids.contains(channel.id.as_str()));
+        assert!(!searched_ids.contains(imported.id.as_str()));
 
         let _ = std::fs::remove_file(&db_path);
     }
@@ -8690,6 +8836,61 @@ mod tests {
         );
 
         let _ = std::fs::remove_file(&db_path);
+    }
+
+    #[test]
+    fn imported_session_cannot_be_assigned_to_project_or_enter_coding_scope() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let db = SessionDB::open_ephemeral_for_test(&temp.path().join("sessions.db"))
+            .expect("open test db");
+        ensure_channel_conversations_table(&db);
+        let imported = db.create_session("ha-main").expect("imported session");
+        let live = db.create_session("ha-main").expect("live session");
+        db.set_session_project(&live.id, Some("project-a"))
+            .expect("assign live session");
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'project-source', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                params![imported.id],
+            )?;
+            Ok(())
+        })
+        .expect("mark imported session");
+
+        assert!(db
+            .set_session_project(&imported.id, Some("project-a"))
+            .expect_err("imported session cannot join a project")
+            .to_string()
+            .contains("read-only"));
+        assert_eq!(
+            db.get_session(&imported.id)
+                .expect("read imported session")
+                .expect("imported session exists")
+                .project_id,
+            None
+        );
+
+        // An earlier version may already have assigned a project before the guard existed.
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "UPDATE sessions SET project_id = 'project-a' WHERE id = ?1",
+                params![imported.id],
+            )?;
+            Ok(())
+        })
+        .expect("simulate prior project assignment");
+        let scope = db
+            .resolve_coding_report_scope(&live.id, None)
+            .expect("live coding scope");
+        assert_eq!(scope.session_ids, vec![live.id]);
+        assert!(db
+            .resolve_coding_report_scope(&imported.id, None)
+            .err()
+            .expect("imported session cannot start coding report")
+            .to_string()
+            .contains("read-only"));
     }
 
     #[test]

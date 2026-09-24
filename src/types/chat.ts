@@ -624,6 +624,16 @@ export interface SessionOrigin {
   label: string
 }
 
+export interface CodexImportReport {
+  scanned: number
+  created: number
+  updated: number
+  unchanged: number
+  skipped: number
+  failed: number
+  unsupportedContent: number
+}
+
 /** Durable Stop receipt; `id` is the exact pause a Continue must consume. */
 export interface SessionAutonomyPause {
   id: string

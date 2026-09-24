@@ -29,13 +29,11 @@ pub fn collect_entries(
         None
     };
     let pull_limit = (cfg.max_sessions as u32).saturating_mul(4).max(20);
-    let (all_sessions, _total): (Vec<SessionMeta>, u32) = db.list_sessions_paged(
-        agent_filter,
-        crate::session::ProjectFilter::All,
-        Some(pull_limit),
-        Some(0),
-        None,
-    )?;
+    // Awareness snapshots can be sent to a model, including the LLM digest
+    // path that reads candidate messages. Filter imports before LIMIT so a
+    // large import cannot crowd out live sessions.
+    let all_sessions: Vec<SessionMeta> =
+        db.list_sessions_for_model(agent_filter, true, pull_limit as usize)?;
 
     // Time cutoff for the lookback window.
     let now = Utc::now();
@@ -212,6 +210,7 @@ fn resolve_agent_name(agent_id: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rusqlite::params;
 
     fn mk_meta_regular(id: &str) -> SessionMeta {
         SessionMeta {
@@ -273,5 +272,61 @@ mod tests {
     fn classify_regular_session() {
         let meta = mk_meta_regular("s3");
         assert_eq!(classify_session(&meta), SessionKind::Regular);
+    }
+
+    #[test]
+    fn imported_sessions_do_not_enter_awareness_or_crowd_out_live_sessions() {
+        let dir = tempfile::tempdir().unwrap();
+        let db = SessionDB::open_ephemeral_for_test(&dir.path().join("sessions.db")).unwrap();
+        db.with_conn_for_test(|conn| {
+            conn.execute_batch(
+                "CREATE TABLE channel_conversations (
+                    session_id TEXT PRIMARY KEY,
+                    channel_id TEXT,
+                    account_id TEXT,
+                    chat_id TEXT,
+                    chat_type TEXT,
+                    sender_name TEXT
+                );",
+            )?;
+            Ok(())
+        })
+        .unwrap();
+        let live = db
+            .create_session(crate::agent_loader::DEFAULT_AGENT_ID)
+            .unwrap();
+
+        // More imports than the collector's minimum pull window, all newer
+        // than the live session. Filtering after LIMIT would lose the live row.
+        for n in 0..21 {
+            let imported = db
+                .create_session(crate::agent_loader::DEFAULT_AGENT_ID)
+                .unwrap();
+            db.with_conn_for_test(|conn| {
+                conn.execute(
+                    "INSERT INTO session_import_sources
+                     (provider, source_id, session_id, content_hash, imported_at)
+                     VALUES ('codex', ?1, ?2, 'hash', ?3)",
+                    params![n.to_string(), imported.id, Utc::now().to_rfc3339()],
+                )?;
+                conn.execute(
+                    "UPDATE sessions SET updated_at = ?1 WHERE id = ?2",
+                    params![
+                        (Utc::now() + chrono::Duration::seconds(1)).to_rfc3339(),
+                        imported.id
+                    ],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+        }
+
+        let cfg = AwarenessConfig {
+            max_sessions: 1,
+            ..AwarenessConfig::default()
+        };
+        let snapshot = collect_entries(&db, &cfg, "other-session", None).unwrap();
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(snapshot.entries[0].session_id, live.id);
     }
 }

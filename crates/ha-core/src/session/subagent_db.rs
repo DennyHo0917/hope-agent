@@ -68,6 +68,16 @@ fn ensure_parent_session_accepts_subagent(
     tx: &rusqlite::Transaction<'_>,
     parent_session_id: &str,
 ) -> Result<()> {
+    let imported: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM session_import_sources WHERE session_id = ?1)",
+        params![parent_session_id],
+        |row| row.get(0),
+    )?;
+    if imported {
+        return Err(anyhow::anyhow!(
+            "Imported Codex conversations are read-only"
+        ));
+    }
     let paused = tx.query_row(
         super::autonomy_pause::SESSION_LINEAGE_PAUSE_EXISTS_SQL,
         params![parent_session_id],
@@ -1753,6 +1763,35 @@ impl SessionDB {
 mod tests {
     use super::SessionDB;
     use crate::subagent::{SubagentRun, SubagentStatus};
+
+    #[test]
+    fn imported_parent_session_rejects_subagent_admission() {
+        let temp = tempfile::tempdir().unwrap();
+        let db = SessionDB::open_ephemeral_for_test(&temp.path().join("sessions.db")).unwrap();
+        let parent = db.create_session("ha-main").unwrap();
+        let child = db
+            .create_session_with_parent("helper", Some(&parent.id))
+            .unwrap();
+        db.with_conn_for_test(|conn| {
+            conn.execute(
+                "INSERT INTO session_import_sources
+                 (provider, source_id, session_id, content_hash, imported_at)
+                 VALUES ('codex', 'subagent-source', ?1, 'hash', '2026-01-01T00:00:00Z')",
+                rusqlite::params![parent.id],
+            )?;
+            Ok(())
+        })
+        .unwrap();
+        let mut attempted = run("imported-run", &child.id, SubagentStatus::Queued);
+        attempted.parent_session_id = parent.id;
+        attempted.owner_id = attempted.parent_session_id.clone();
+        assert!(db
+            .insert_subagent_run(&attempted)
+            .expect_err("imported parent cannot admit a subagent")
+            .to_string()
+            .contains("read-only"));
+        assert!(db.get_subagent_run(&attempted.run_id).unwrap().is_none());
+    }
 
     fn run(run_id: &str, child_session: &str, status: SubagentStatus) -> SubagentRun {
         SubagentRun {
