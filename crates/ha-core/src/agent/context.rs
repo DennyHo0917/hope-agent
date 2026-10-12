@@ -2624,9 +2624,10 @@ pub(crate) async fn summarize_direct(
     use crate::context_compact::SUMMARIZATION_SYSTEM_PROMPT;
 
     let started = std::time::Instant::now();
-    let client = crate::provider::apply_proxy(reqwest::Client::builder().user_agent(user_agent))
-        .build()
-        .map_err(|e| anyhow::anyhow!("HTTP client error: {}", e))?;
+    let client =
+        crate::provider::apply_model_proxy(reqwest::Client::builder().user_agent(user_agent))
+            .build()
+            .map_err(|e| anyhow::anyhow!("HTTP client error: {}", e))?;
 
     let result = provider
         .as_adapter()

@@ -46,6 +46,8 @@ After you add a provider, the system automatically sets its first model as the c
 
 > **DeepSeek vision model**: New direct DeepSeek providers can select **DeepSeek V4.1 Flash**. It supports image input, a million-token context window, and reasoning. Existing DeepSeek configurations are not rewritten automatically; add model ID `deepseek-flash` manually when needed, or create the connection again.
 
+Connection tests and model requests do not automatically follow endpoint redirects. If a test reports a redirect, confirm the final API address with your provider and update the Base URL. Hope does not forward your key or request content to the redirect target or report that response as a successful connection.
+
 ### Custom provider
 
 If your provider has no ready-made template, choose "Custom provider" and follow the three-step wizard:
