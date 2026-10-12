@@ -138,6 +138,8 @@ hope-agent auth codex logout         # Sign out (deletes the Codex provider and 
 - **Default model**: a two-level dropdown (pick the provider first, then the model); this is the model all new sessions use by default.
 - **Fallback chain (Fallback)**: you can add multiple and drag to reorder; when the primary model call fails, the system automatically tries the next one in this order. See [2.7](#27-automatic-failover).
 
+When a provider or model list is long, both menu levels scroll within the popup. Use the mouse wheel or keyboard navigation to reach the final entries. The Agent's plan-mode model selector supports the same interaction.
+
 **A few key points**:
 
 - A session "pins" the model at the time it is created; changing the global default afterward **does not affect existing sessions**, only new ones. To temporarily swap the model for a single session, use the `/model` command in the conversation or the model entry in the input box.
@@ -280,6 +282,8 @@ Just like language models, **one provider takes one key and hosts multiple model
 Provider cards can be dragged to reorder — the order is the priority for automatic selection and failover. ElevenLabs / OpenAI / Cartesia / MiniMax can "Fetch Voices" to list the voices available to your account and set a provider-level default voice; the other speech providers keep a manually entered voice ID. The API key is a password box in the panel; the AI sees it masked when reading it through conversation, and **cannot write provider entries at all**.
 
 ### Step 2: Configure default chains and tool parameters
+
+Media provider connection tests, generation requests, and voice lists do not automatically follow endpoint redirects. If a redirect is reported, confirm the final API address with your provider, update the Base URL, and retry; this response does not mean the connection succeeded.
 
 **Where**: Settings → **Tool Settings** → **Media Generation** tab. Set one default model chain each for **image, speech, music, and sound effects** (a primary model plus optional fallbacks; if the primary fails, it degrades to the next automatically). Leave a chain empty to "follow provider order (auto)" — the hint below shows which model will actually be used.
 

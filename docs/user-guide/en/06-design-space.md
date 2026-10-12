@@ -107,7 +107,7 @@ Every AI generation / refinement, visual fine-tune, design-system swap, and roll
 
 ## 6.7 Export
 
-Export prefers real, browser-native capture (highest fidelity), and when the conditions aren't available it automatically falls back to a client-side approach, so it **can always export**:
+Export prefers real, browser-native capture (highest fidelity). When dependencies are missing, the interface lets you download and install them, follow manual installation instructions, or use a client-side approach. Client-side export still depends on browser capabilities.
 
 | Format | Use |
 | --- | --- |
@@ -120,7 +120,7 @@ Export prefers real, browser-native capture (highest fidelity), and when the con
 | Markdown | Low-bandwidth delivery |
 | Code delivery package | Contains HTML + source + six token-code formats + delivery notes, for the engineering side |
 
-> Video and high-fidelity PDF/PNG require Chromium and ffmpeg—these are **not bundled into the installer**. Ones already installed on the system are used directly; missing ones are downloaded on demand, and any missing piece automatically degrades to the client-side approach without hanging. Desktop export pops the native "Save to…" dialog; web / server mode goes through a browser download, and **remote mode never writes to the server disk**.
+> High-fidelity PDF/PNG require Chromium, and native video export also requires ffmpeg. These are **not bundled into the installer**. Existing system installations are used directly; if dependencies are missing, follow the interface to install them or choose the client-side approach. Failed native exports also try the client-side approach. If the browser does not support the required video encoding or export fails, an error is reported; install the dependencies and retry. Desktop export opens the native "Save to…" dialog; web / server mode uses browser downloads, and **remote mode never writes to the server disk**.
 
 ---
 
