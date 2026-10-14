@@ -342,6 +342,8 @@ New installations enable **Free multi-engine search** by default: Brave web sear
 
 This native implementation takes inspiration from DDGS's multi-engine fallback and does not run the original Python DDGS package. Keyless access cannot guarantee availability: upstream rate limits, network restrictions, and page changes can still cause failures. Country and language filters are applied on a best-effort basis according to upstream support; an explicit freshness filter prevents fallback to 360 Search, which does not support it.
 
+Kimi search uses the domestic standalone Basic REST API with your existing key. Each request returns up to 10 structured links and snippets without asking a chat model to generate search JSON or fetching full page content. Basic does not support country, language, or recency filters; when requested, Hope reports the limitation and tries subsequent enabled providers instead of silently dropping filters. The published billing rule charges successful requests with nonempty results; actual account charges and search quality still require verification.
+
 When running `hope-agent server setup`, the search-provider step also offers Free multi-engine search without asking for credentials. New configurations select it by default; existing configurations select their first enabled provider, and the order changes only after you confirm a choice.
 
 | Advanced setting | What it does |

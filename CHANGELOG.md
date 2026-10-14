@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Kimi 搜索兼容**：迁移到独立 Basic 搜索接口，直接返回链接与摘要，明确不支持的过滤条件并保留搜索回退和按次用量记录。 (#829)
 - **xAI 退役预设**：清理五个明确退役且会转向替代型号计费的新建候选，保留既有配置与自定义模型；MiniMax 兼容模板不再提供未获该接口支持的 VL-01。 (#823)
 - **模型 ID 补全**：优先显示大小写完全匹配的 API ID，避免 MiniMax 原厂 ID 被同名网关候选挤到后面。 (#823)
 - **Google 直连预设**：新建模板移除会转向新版的 Gemini 3.7 / 3.5 Flash，以及仅限既有用户访问的 Gemini 2.5 系列，保留现有配置和网关候选。 (#823)
