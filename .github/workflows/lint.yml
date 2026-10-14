@@ -49,6 +49,9 @@ jobs:
           node scripts/check-workflow-supply-chain.mjs
           node --test scripts/__tests__/workflow-supply-chain.test.mjs
 
+      - name: Project automation control contracts
+        run: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/automation -p 'test_*.py'
+
       # Same class of two-place contract as the pubkey above, for the manifest
       # endpoints: tauri.conf.json (desktop), manifest.rs (headless), and the
       # mirror workflow's PUBLIC_BASE must name the same URLs in the same
