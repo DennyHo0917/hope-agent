@@ -174,7 +174,7 @@ hope-agent auth codex logout         # 登出(会删除 Codex 服务商与本地
 - **思考强度(Think)**：最多支持 `none / minimal / low / medium / high / xhigh / max` 七档，全局默认 `medium`。请求发送时按模型、协议与端点映射到受支持档位，对话里可用 `/thinking high` 快速调整。
 - **温度**:控制回答的随机性,滑块 0.00–2.00,默认 1.00。带「重置」按钮回到继承状态。
 
-直连 **GPT-6 Astra** 时，有工具的对话请选择 OpenAI Responses。Astra 保留 `max`，`none` / `minimal` 映射为 `low`，不发送温度。新预设只影响新建连接；已有服务商需自行添加模型或调整协议。
+直连 **GPT-6** 时，有工具的对话请选择 OpenAI Responses。四项模型均保留 `max`；Astra / GPT-6.1 Sol 的“关闭”映射为 `low`，GPT-6 Sol / Luna 则发送 `none`，`minimal` 均映射为 `low`。未设置强度时保留模型默认；推理启用时不发送温度。Codex 登录的参数差异见 [2.4](#24-用-chatgpt--codex-账号登录)。新预设只影响新建连接；已有服务商需自行添加模型或调整协议。
 
 **Claude Fable 5.1** 的原始思考签名会随会话保存。若动态前缀、压缩或切换模型导致部分历史思考无法继续使用，回复中会出现提示；本地原始块仍保留，但不保证跨模型保留全部推理状态。
 
@@ -183,7 +183,7 @@ hope-agent auth codex logout         # 登出(会删除 Codex 服务商与本地
 | 风格 | 适用 |
 | --- | --- |
 | OpenAI(`reasoning_effort`) | OpenAI / DeepSeek / Mistral / xAI 等 |
-| Anthropic(`thinking budget_tokens`) | Claude、MiniMax、Kimi 等 |
+| Anthropic（按模型使用自适应思考、开关或 `budget_tokens`） | Claude、MiniMax、Kimi 等 |
 | Zai | 智谱 Z.AI |
 | Qwen(`enable_thinking`) | 通义千问 / 阿里云百炼 |
 | None | 不发送思考参数(部分自定义端点) |
@@ -285,8 +285,6 @@ hope-agent auth codex logout         # 登出(会删除 Codex 服务商与本地
 图片和音频生成共用一套「**服务商 → 多模型 → 功能默认链**」配置,供对话里的 `image_generate` / `audio_generate` 工具和[设计空间](06-设计空间.md)使用。
 
 ### 第一步:配置服务商与模型
-
-MiniMax M3 使用原有 Anthropic 兼容连接，支持图片、百万上下文与思考开关；输出预设为官方推荐的 131,072 tokens。基础输入/输出价为每百万 $0.30/$1.20，超过 512K 输入时为 $0.60/$2.40。它只有思考开关，档位不改变思考深度；视频上传和 M3.1 Flash Preview 未作为预设能力加入。新模板移除该兼容接口未声明支持的 VL-01，旧配置仍可编辑。
 
 **入口**:设置 → **模型配置** → **媒体生成模型** 标签页。点「添加服务商」从 27 个内置模板一键接入,模板按模态分组并支持搜索——品牌名和模型 ID 都能搜(例如输入 `seedream` 或 `flux` 直接定位到对应服务商):
 

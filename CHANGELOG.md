@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.66.0] - 2026-10-15
+
 ### Added
 
 - **Codex GPT-6 模型**：ChatGPT 登录后可选择 GPT-6 Astra、GPT-6.1 Sol、GPT-6 Sol 和 GPT-6 Luna，保留既有默认与自定义设置；同步推理参数并清理明确退役的新建候选。 (#823)

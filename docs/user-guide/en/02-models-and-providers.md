@@ -174,7 +174,7 @@ Two knobs that affect answer style, both layered as "**session > Agent > global*
 - **Thinking effort (Think)**: offers up to seven levels, `none / minimal / low / medium / high / xhigh / max`, with a global default of `medium`. Requests map the preference to supported levels for the model, protocol, and endpoint. Use `/thinking high` in a conversation to adjust it quickly.
 - **Temperature**: controls the randomness of answers, a slider from 0.00–2.00, defaulting to 1.00. A "Reset" button returns it to the inherited state.
 
-For direct **GPT-6 Astra** conversations with tools, choose OpenAI Responses. Astra preserves `max`, maps `none` / `minimal` to `low`, and omits temperature. New presets affect new connections only; add the model or adjust the protocol yourself for existing providers.
+For direct **GPT-6** conversations with tools, choose OpenAI Responses. All four models preserve `max`. Turning thinking off maps to `low` for Astra / GPT-6.1 Sol and to `none` for GPT-6 Sol / Luna; `minimal` maps to `low` for all four. An unset effort preserves the model default; temperature is omitted while reasoning is enabled. See [2.4](#24-sign-in-with-a-chatgpt--codex-account) for Codex login differences. New presets affect new connections only; add the model or adjust the protocol yourself for existing providers.
 
 **Claude Fable 5.1** stores original thinking signatures with the conversation. If dynamic prefixes, compaction, or a model switch make some historical thinking unusable, the reply displays a notice. Local original blocks remain available, but full reasoning continuity across models is not guaranteed.
 
@@ -183,7 +183,7 @@ For direct **GPT-6 Astra** conversations with tools, choose OpenAI Responses. As
 | Style | Applies to |
 | --- | --- |
 | OpenAI (`reasoning_effort`) | OpenAI / DeepSeek / Mistral / xAI, etc. |
-| Anthropic (`thinking budget_tokens`) | Claude, MiniMax, Kimi, etc. |
+| Anthropic (model-specific adaptive thinking, toggle, or `budget_tokens`) | Claude, MiniMax, Kimi, etc. |
 | Zai | Zhipu Z.AI |
 | Qwen (`enable_thinking`) | Tongyi Qianwen / Alibaba Cloud Bailian |
 | None | Sends no thinking parameters (some custom endpoints) |
