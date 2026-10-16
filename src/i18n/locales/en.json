@@ -12177,12 +12177,15 @@
       "desc": "Pull a Figma file's published color / text / effect styles and distill them into a brand design system. The token is used only for this import and never saved.",
       "url": "Figma file URL or key",
       "token": "Personal access token",
-      "tokenHint": "Generate one in Figma → Settings → Security → Personal access tokens (needs file_read scope).",
+      "tokenHint": "Generate one in Figma → Settings → Security → Personal access tokens (needs library_content:read, file_content:read, and file access).",
       "name": "System name (optional)",
       "namePlaceholder": "Figma design system",
       "import": "Import",
       "ok": "Imported design system from Figma",
-      "err": "Figma import failed — check the URL and token"
+      "err": "Figma import failed — check the URL and token",
+      "permissionErr": "Figma import denied: check token validity, library_content:read, file_content:read, and file / organization access.",
+      "rateLimited": "Figma is rate limited. Wait before trying again; the cooldown is unknown.",
+      "retryAfter": "Figma is rate limited. Wait at least {{seconds}} seconds before trying again."
     },
     "exportHandoff": "Dev handoff (ZIP)",
     "bind": {

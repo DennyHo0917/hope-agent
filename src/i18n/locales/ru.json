@@ -12177,12 +12177,15 @@
       "desc": "Загрузите опубликованные стили цвета / текста / теней из файла Figma и преобразуйте их в фирменную дизайн-систему. Токен используется только для этого импорта и не сохраняется.",
       "url": "URL или ключ файла Figma",
       "token": "Персональный токен доступа",
-      "tokenHint": "Создайте его в Figma → Settings → Security → Personal access tokens (нужен доступ file_read).",
+      "tokenHint": "Создайте его в Figma → Settings → Security → Personal access tokens (нужны library_content:read, file_content:read и доступ к файлу).",
       "name": "Название системы (необязательно)",
       "namePlaceholder": "Дизайн-система Figma",
       "import": "Импортировать",
       "ok": "Дизайн-система импортирована из Figma",
-      "err": "Не удалось импортировать из Figma — проверьте URL и токен"
+      "err": "Не удалось импортировать из Figma — проверьте URL и токен",
+      "permissionErr": "Импорт Figma отклонён: проверьте срок действия токена, library_content:read, file_content:read и доступ к файлу или организации.",
+      "rateLimited": "Figma ограничивает запросы. Повторите позже; время ожидания неизвестно.",
+      "retryAfter": "Figma ограничивает запросы. Подождите не менее {{seconds}} секунд перед повтором."
     },
     "exportHandoff": "Пакет для разработчиков (ZIP)",
     "bind": {

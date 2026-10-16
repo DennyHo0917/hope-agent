@@ -12177,12 +12177,15 @@
       "desc": "اجلب أنماط الألوان / النصوص / الظلال المنشورة من ملف Figma وحوّلها إلى نظام تصميم للعلامة. يُستخدم الرمز لهذا الاستيراد فقط ولا يُحفظ.",
       "url": "رابط ملف Figma أو المفتاح",
       "token": "رمز الوصول الشخصي",
-      "tokenHint": "أنشئه من Figma → Settings → Security → Personal access tokens (يتطلب صلاحية file_read).",
+      "tokenHint": "أنشئه من Figma → Settings → Security → Personal access tokens (يتطلب library_content:read وfile_content:read والوصول إلى الملف).",
       "name": "اسم النظام (اختياري)",
       "namePlaceholder": "نظام تصميم Figma",
       "import": "استيراد",
       "ok": "تم استيراد نظام التصميم من Figma",
-      "err": "فشل استيراد Figma — تحقق من الرابط والرمز"
+      "err": "فشل استيراد Figma — تحقق من الرابط والرمز",
+      "permissionErr": "رُفض استيراد Figma: تحقق من صلاحية الرمز وlibrary_content:read وfile_content:read وإمكانية الوصول إلى الملف أو المؤسسة.",
+      "rateLimited": "طلبات Figma محدودة. انتظر قبل إعادة المحاولة؛ مدة الانتظار غير معروفة.",
+      "retryAfter": "طلبات Figma محدودة. انتظر {{seconds}} ثانية على الأقل قبل إعادة المحاولة."
     },
     "exportHandoff": "حزمة تسليم للمطورين (ZIP)",
     "bind": {

@@ -12177,12 +12177,15 @@
       "desc": "Tarik gaya warna / teks / bayang yang diterbitkan daripada fail Figma dan sulingkannya menjadi sistem reka bentuk jenama. Token hanya digunakan untuk import ini dan tidak disimpan.",
       "url": "URL atau kunci fail Figma",
       "token": "Token akses peribadi",
-      "tokenHint": "Jana satu di Figma → Settings → Security → Personal access tokens (perlu skop file_read).",
+      "tokenHint": "Jana satu di Figma → Settings → Security → Personal access tokens (perlu library_content:read, file_content:read dan akses fail).",
       "name": "Nama sistem (pilihan)",
       "namePlaceholder": "Sistem reka bentuk Figma",
       "import": "Import",
       "ok": "Sistem reka bentuk diimport dari Figma",
-      "err": "Import Figma gagal — semak URL dan token"
+      "err": "Import Figma gagal — semak URL dan token",
+      "permissionErr": "Import Figma ditolak: semak kesahan token, library_content:read, file_content:read dan akses fail/organisasi.",
+      "rateLimited": "Permintaan Figma dihadkan. Tunggu sebelum mencuba lagi; tempoh menunggu tidak diketahui.",
+      "retryAfter": "Permintaan Figma dihadkan. Tunggu sekurang-kurangnya {{seconds}} saat sebelum mencuba lagi."
     },
     "exportHandoff": "Pakej serahan kod (ZIP)",
     "bind": {

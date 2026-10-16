@@ -12177,12 +12177,15 @@
       "desc": "Obtén los estilos de color / texto / sombra publicados de un archivo de Figma y destílalos en un sistema de diseño de marca. El token solo se usa para esta importación y nunca se guarda.",
       "url": "URL o clave del archivo de Figma",
       "token": "Token de acceso personal",
-      "tokenHint": "Genera uno en Figma → Settings → Security → Personal access tokens (necesita permiso file_read).",
+      "tokenHint": "Genera uno en Figma → Settings → Security → Personal access tokens (necesita library_content:read, file_content:read y acceso al archivo).",
       "name": "Nombre del sistema (opcional)",
       "namePlaceholder": "Sistema de diseño de Figma",
       "import": "Importar",
       "ok": "Sistema de diseño importado de Figma",
-      "err": "Error al importar de Figma: revisa la URL y el token"
+      "err": "Error al importar de Figma: revisa la URL y el token",
+      "permissionErr": "Figma denegó la importación: comprueba la validez del token, library_content:read, file_content:read y el acceso al archivo u organización.",
+      "rateLimited": "Figma limita las solicitudes. Espera antes de reintentar; se desconoce el tiempo de espera.",
+      "retryAfter": "Figma limita las solicitudes. Espera al menos {{seconds}} segundos antes de reintentar."
     },
     "exportHandoff": "Paquete para desarrolladores (ZIP)",
     "bind": {

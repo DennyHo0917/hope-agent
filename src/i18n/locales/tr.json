@@ -12177,12 +12177,15 @@
       "desc": "Bir Figma dosyasının yayımlanmış renk / metin / gölge stillerini alıp bir marka tasarım sistemine dönüştürün. Token yalnızca bu içe aktarma için kullanılır ve saklanmaz.",
       "url": "Figma dosya URL'si veya anahtarı",
       "token": "Kişisel erişim token'ı",
-      "tokenHint": "Figma → Settings → Security → Personal access tokens bölümünden oluşturun (file_read izni gerekir).",
+      "tokenHint": "Figma → Settings → Security → Personal access tokens bölümünden oluşturun (library_content:read, file_content:read ve dosya erişimi gerekir).",
       "name": "Sistem adı (isteğe bağlı)",
       "namePlaceholder": "Figma tasarım sistemi",
       "import": "İçe aktar",
       "ok": "Tasarım sistemi Figma'dan içe aktarıldı",
-      "err": "Figma içe aktarma başarısız — URL ve token'ı kontrol edin"
+      "err": "Figma içe aktarma başarısız — URL ve token'ı kontrol edin",
+      "permissionErr": "Figma içe aktarımı reddedildi: belirteç geçerliliğini, library_content:read, file_content:read ve dosya/kuruluş erişimini denetleyin.",
+      "rateLimited": "Figma istekleri sınırlı. Yeniden denemeden önce bekleyin; bekleme süresi bilinmiyor.",
+      "retryAfter": "Figma istekleri sınırlı. Yeniden denemeden önce en az {{seconds}} saniye bekleyin."
     },
     "exportHandoff": "Geliştirici paketi (ZIP)",
     "bind": {

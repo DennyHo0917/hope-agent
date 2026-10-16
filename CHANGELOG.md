@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Figma 导入诊断**：修正令牌权限提示，区分访问失败与限流等待，并避免错误信息暴露文件和账号内容。 (#835)
 - **MiniMax 新建预设**：在 M2.5/M2.7 对新用户关闭前清理三项原厂候选，保留 M3、已保存的模型配置与自定义选择，并说明按量退役和套餐路由的区别。 (#831)
 
 ## [0.66.0] - 2026-10-15
