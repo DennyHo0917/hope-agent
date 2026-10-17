@@ -1,5 +1,11 @@
 # 行动卡统一迭代台账
 
+## 2026-10-17：依赖主责接续 OpenAI 临期目录
+
+`hope-agent-3` 精确 prepare 成功，基线 `323d07fc966fb90840460364618726ecc02ac6f6`，运行 `20261017T033245-a2d7735d`；本轮一个相关维护包 [PR #836](https://github.com/shiwenwen/hope-agent/pull/836) 接续 `embedding:A1`（既有台账关联 `02-A3`）与 `llm-provider:OPENAI-LEGACY-20261023`。在 [官方公告](https://developers.openai.com/api/docs/deprecations) 的 10-23 截止前，新建 OpenAI 图像模板移除 `gpt-image-1`、保留已有 `gpt-image-2` 为首选；两个直连聊天模板移除 `o1` / `o1-pro` / `o3-mini` / `o4-mini`，保留既有 GPT-5.6 候选，并按官方深度研究说明清理7-23已停用的 `o3-deep-research` / `o4-mini-deep-research`；这是本轮审查补漏，不作为新退役公告。已存模型、active/fallback、自定义及网关不改写；`overview.rs` 的旧型号是脱敏测试夹具，不是运行时默认值。18项前端目录检查与Rust图像目录定向检查通过，中英手册、Provider/媒体合同同步；普通hooks、最终精确头CI、审查线程、保护合入和远端逐文件读回由本任务交付回执记录。真实生成/编辑、质量、账号、费用及用户配置迁移仍待各自合同，整卡保持部分交付，其他任务不重复建目录PR。
+
+三个机器人open PR已完整分页核对：#825 Tauri两端版本不匹配、#826 rand0.10 API变更、#834 412项React Hooks错误均有当前head失败日志，不属临时环境故障；#827已关闭。今日RustSec新增入库的ZIP三条公告 `RUSTSEC-2026-0367/0368/0369` 以 `rustsec:zip-extraction-20261017` 同一来源组入队，锁中4.6.1/7.2.0/8.6.0命中版本范围，修复要求>=9.0.0须审兼容；直接调用未使用上游自动extract，Chrome/FFmpeg自有解包仍复制权限位但受固定资产来源/大小/SHA守卫，不能据此宣称全链不可利用。由依赖主责于10-18优先复核，与已有rustls0.23.46待办一起按影响排序；本轮不加第二维护包。Chrome10-15公告、Node10-21预告及Dependabot alerts的既有403决策 `09-A-03` 保持原主责，不重复申请权限或升级宿主。
+
 ## 2026-10-16：Figma 导入诊断与 IM 增量
 
 prepare `exit=0/ok=true`；基线 **4312256b03faff825a789bc9a4177c9ddc7a6b19**，核验 **2026-10-16T10:26:55.646886+00:00**，独立分支 `codex/automation-7-20261016t102647-0b3e9c6b`；writer lease 已取得。#831 实时确认 MERGED，本任务无在途交付。依赖 #828 已由原主责合入，合并提交等于本轮基线；其状态记录中残留的旧 next_action 不覆盖实时终态。GPT Image 1 / OpenAI 旧别名仍由 `hope-agent-3` 接续一个维护包，不重复建 PR。回归队列已完成66项有界合成检查、无新失败，但基线仍是 `96c12b81`，不记为本轮复验。其他贡献者分支与发布收口归原主责。

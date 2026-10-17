@@ -324,7 +324,7 @@ hope-agent auth codex logout         # 登出(会删除 Codex 服务商与本地
 
 > 通过对话调设置时,AI 只能改默认调用链和上表里的参数;服务商条目(含 API Key)**只能在 GUI 里改**。
 
-图像新建模板已移除退役的 DALL·E 3 和 Google Imagen 4 / 旧 Gemini 图像预设，Google 使用 `gemini-3.1-flash-image` / `gemini-3-pro-image`。现有配置需由你按服务商当前可用性选择替换；GPT Image 1 将于 2026-10-23 下线，届时前请核对替代模型与所需参数。目录更新不代表真实图像质量已验收。
+图像新建模板已移除退役的 DALL·E 3 和 Google Imagen 4 / 旧 Gemini 图像预设，Google 使用 `gemini-3.1-flash-image` / `gemini-3-pro-image`。现有配置需由你按服务商当前可用性选择替换；GPT Image 1 将于 2026-10-23 下线，新建 OpenAI 图像模板已仅保留 GPT Image 2；已存配置不会自动迁移，请在截止前核对替代模型与所需参数。OpenAI 直连聊天模板也不再推荐同日退役的 `o1` / `o1-pro` / `o3-mini` / `o4-mini`，并移除已退役的 `o3-deep-research` / `o4-mini-deep-research`；已有模型和默认链由你自行调整。目录更新不代表真实图像质量已验收。
 
 ---
 

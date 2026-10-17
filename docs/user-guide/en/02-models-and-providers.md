@@ -324,7 +324,7 @@ The image and audio artifacts of the [Design Space](06-design-space.md) run on t
 
 > When adjusting settings through conversation, the AI can only change the default chains and the parameters in the table above; provider entries (including API keys) **can only be changed in the GUI**.
 
-New image templates exclude retired DALL·E 3 and Google Imagen 4 / older Gemini image presets; Google uses `gemini-3.1-flash-image` / `gemini-3-pro-image`. Choose replacements for existing configurations according to your provider’s current availability. GPT Image 1 shuts down on October 23, 2026; check replacement models and required parameters before then. Catalog maintenance does not establish actual image quality.
+New image templates exclude retired DALL·E 3 and Google Imagen 4 / older Gemini image presets; Google uses `gemini-3.1-flash-image` / `gemini-3-pro-image`. Choose replacements for existing configurations according to your provider’s current availability. GPT Image 1 shuts down on October 23, 2026; new OpenAI image templates now offer only GPT Image 2. Saved configurations are not migrated automatically; check replacement models and required parameters before the deadline. Direct OpenAI chat templates also stop recommending `o1` / `o1-pro` / `o3-mini` / `o4-mini`, which retire on the same date, and removes the already retired `o3-deep-research` / `o4-mini-deep-research` presets. Adjust existing models and default chains yourself. Catalog maintenance does not establish actual image quality.
 
 ---
 
