@@ -1,5 +1,24 @@
 # 行动卡统一迭代台账
 
+## 2026-10-18：接续 MCP 交付与每日证据对账
+
+精确 prepare 先返回本任务旧 run，再按 `--resume` 成功续跑 `20261017T103309-38386cd4`；原始基线 **61737ff55b7d349bffa20c5da43742098da584b3** 保留，最新 main **630846090637999d62af23897e6358bb99234160**，核验时间 **2026-10-18T10:26:48.146167+00:00**。本轮只接续 [PR #837](https://github.com/shiwenwen/hope-agent/pull/837)：将已核验 main 的 TLS 补丁和台账并入原分支，解决两处文档并发冲突；#837 复审发现对话后缀会破坏 MCP Hook JSON：已按调用方区分对话正文与 Hook 协议，后者仅接收已知且可解码的结构化Hook协议，附加元数据/畸形值沿旧正文；空对象保持正常审批；双协议按真实事件保留更严格决定及continue:false；同一连接/并发/超时/错误路径保留，不接受工具入参切换。双协议还保留正常审批、上下文和旧改写，空嵌套及合法空值协议也维持正常审批，仅共同显式allow才跳过软审批。新增内存 JSON-RPC → rmcp → 装配 → Hook runner → parser 回归，覆盖 deny/block/ask/continue:false，并补十类元数据/较弱协议双结果。#838 已 MERGED，统一决策 `OPS-CODE-REVIEW-CAPACITY` 由其精确头云端复审成功证据解除；#837 仍须自己的新头复审与 CI，不能沿用 #838 的审查或旧头 9/9 CI。
+
+00–12 的13组 LATEST.md/完整 JSON 和不可变双文件全部读取校验；仅12更新为10-18。`12-FTR-002/006/007` 延续原ID，吸收来源版本/规则版本、动作回执未知、诊断与整任务验收分离的研究边界；新增前沿卡0，不把论文数字或方案当 Hope 成绩，不重建已有 hash、Workflow 或 lease。常规兼容维护与有界合成复现沿 policy 授权，原产品控制合同、正式 Goal 接入和完整专项仍待各自范围冻结。本轮不运行这些实验。
+
+继承142张雷达卡；将既有依赖队列 ZIP 组和新增 zbus 停止独立维护组登记为2张待证据卡，将首份成功 Discussions 归档的2项产品/商务咨询登记为待决策。共 **146** 张：已交付18、部分交付42、待决策31、待授权26、待证据16、观察13。118项当前雷达来源映射，加5项依赖/讨论补充来源映射，共123项；OpenAI临期目录补充来源关联既有 `02-A3`，不重复计卡。完整输入、逐卡状态、主责、统一计划与读回证据保存在本轮 `continuations/20261018/`；专项历史保持只读。
+
+| 优先级 / 主责 | 本轮范围与来源 | 验收 / 重新评估条件 |
+| --- | --- | --- |
+| P0 / automation-7，`05-A1` | 唯一在途包：成功结果同时保留文字/媒体与结构化 JSON | 正常 hooks、新头独立复审、必需 CI、全部审查线程解决、可合并且干净后保护交付；最终状态以本轮回执为准 |
+| P0/P1 / automation-7，`07-HA-RT-008` | 托管 Chrome；缺四平台完整提升凭据 | 字节/SHA/许可及原生隔离冒烟齐全再提升，不升级宿主 |
+| P1 / hope-agent-3，`rustsec:zip-extraction-20261017` | 三项 ZIP 公告沿依赖主责与10-19目标，不接管分支 | 安全权限/符号链接隔离夹具、兼容性证据；固定资产与路径守卫保留，不强塞 ZIP9 |
+| P2 / hope-agent-3，`rustsec:zbus-standalone-20261018` | 三项停止独立维护提示，非新漏洞、无硬停用日期 | 10-25前核上游 zbus6/Linux 传递链兼容路径，不强行跨主版本替换 |
+| P2 / automation-7，`DISC-833` / `DISC-815` | 88API赞助咨询 / 第三方品牌MCP模板收录；来源为首份成功社区归档 | 所有者仅批准品牌MCP范围评估，赞助暂缓；复用现有表单可行，但必需凭据引用阻断和可核官方固定来源仍缺；未批准实施或公开回复/报价/承诺 |
+| P1 / automation-7，`04-A7` / `10-A14` | OpenViking5000+1与Signal逐账号/daemon重放继续排队 | 本在途交付收口后选下一有界合成包；真实服务/账号门保留 |
+
+回归66项仍沿 `96c12b81` 原基线，不是本轮复验；00与09继续保留自身周期和源码时效边界。下轮周一做完整盘点，按10-19 ZIP、10-21 Node、10-23模型及10-25 zbus目标核主责最新回执；不重复目录PR、历史评测或已解决的额度提问。无真实Provider/账号/费用/用户数据/生产写入/宿主升级。
+
 ## 2026-10-18：依赖主责接续 TLS 安全补丁
 
 `hope-agent-3` 精确 prepare 基线 `61737ff55b7d349bffa20c5da43742098da584b3`，运行 `20261018T033443-18a03159`；本轮唯一维护包 [PR #838](https://github.com/shiwenwen/hope-agent/pull/838) 接续 `sdk-api:SDK-04` / `06-SDK-04`，共享锁文件将 rustls 0.23.45 提升至正式版 0.23.46。官方 10-14 四项公告及调用条件见[安全合同](../infra/security.md#2026-10-18-rustls-安全补丁)；保留 native-tls、现有依赖特征与传输权限。源码没有直接 ECH/会话 Debug 配置，不将版本命中当成攻击复现。普通 hooks、精确头 CI、审查与保护合入由同一 run 留证；畸形 TLS/H2 专项和真实 Provider 不在本轮范围，整卡仍部分交付。
@@ -7,6 +26,21 @@
 完整分页的机器人 PR #825/#826/#834 精确 head 与失败检查均未变，分别为 Tauri 两端版本、rand 0.10 API、React Hooks lint 的代码兼容问题；不盲目重跑或合入。`rustsec:zip-extraction-20261017` 完成直接及传递调用复核：自有 ZIP 读取不调用自动解包；Tauri updater 2.12.0 的自动 ZIP 解包属于 Windows 更新分支，不能把 Unix 权限/符号链接条件直接套用；calamine 读取 ZIP 条目。Chrome/FFmpeg 的手工权限复制仍应有界加固，并保留固定资产来源/大小/SHA 校验；不强塞 ZIP 9 到多个不兼容主版本，也不宣称全图无风险。该组仍归依赖主责，后续以隔离权限夹具与版本兼容证据收口。
 
 新增入库的 `RUSTSEC-2026-0370/0371/0372` 是 zvariant/zbus_names/zvariant_derive 停止独立维护提示，统一来源 `rustsec:zbus-standalone-20261018`，由依赖主责跟踪 Linux 传递链及上游 zbus 6 迁移；没有修复版本或硬停用日期，不当新漏洞、不强行跨主版本替换。ammonia 未入锁；lopdf 公告补充已修复下限，当前 0.42.0 已满足。OpenAI 官方页面仅移除一条历史重复行，近期截止未变；#836 的目录交付不重复。Chrome 10-15、Node 10-21、xAI 11-02 以及 `09-A-03` 沿原稳定 ID 与主责继续。
+
+## 2026-10-17：MCP 结构化结果增量
+
+每日增量 prepare `exit=0/ok=true`；核验基线 **61737ff55b7d349bffa20c5da43742098da584b3**，核验时间 **2026-10-17T10:33:17.282948+00:00**，独立分支 `codex/automation-7-20261017t103309-38386cd4`，writer lease 已取得。本任务 #835 已 MERGED 且清理；依赖主责 #836 已 MERGED，合并提交等于当前基线，10-23 新建目录维护已交付，真实模型/账号/费用及已存配置迁移仍待各自合同。ZIP/rustls 安全维护由 `hope-agent-3` 于10-18接续，不接管其分支。
+
+00–12全部13组 LATEST.md/完整JSON及不可变双文件已读取并校验；仅05更新为10-16 19:10。来源卡由117增为118，保留原稳定语义ID，00只关联排序；新增 `05-ACP-NOTICE-COMPACTION`，状态待证据：稳定可选能力先冻结离线序列化/路由夹具，UI及本地压缩映射另评估，不默认宣告或启用。继承141张，共 **142** 张：已交付18、部分交付42、待决策29、待授权26、待证据14、观察13。完整来源/逐卡状态/计划见本轮受管run，不补跑历史专项。
+
+| 优先级 / 主责 | 工作流、基线与本轮范围 | 验收 / 重新评估条件 |
+| --- | --- | --- |
+| P0 / automation-7，`05-A1` | 既有授权MCP工具成功响应仅归一化content，structuredContent被丢弃；本轮唯一小包追加带标记的紧凑JSON | 缺省维持旧输出；显式null及全部JSON类型、文字/媒体双结果离线wire夹具；isError仍失败，不新增结构化错误日志；正常hooks、精确头审查/必需CI、保护合并后回读 |
+| P0/P1 / automation-7，`07-HA-RT-008` | 托管Chrome刷新继续等待四平台字节/SHA/许可/原生隔离冒烟 | 不以版本号替代完整验收，不升级宿主 |
+| P1 / hope-agent-3 | 新ZIP公告、rustls与机器人PR | 沿依赖队列的10-18安全包；兼容性和可达性证据先于升级 |
+| P1 / automation-7，`04-A7` / `10-A14` | OpenViking5000+1分页、Signal逐账号/daemon代次重放 | 合成夹具继续排队，真实服务/账号门保留 |
+
+`05-A1` 保持部分交付：本轮仅成功结果数据传递，不新增schema校验器、outputSchema组合/$ref预算、MRTR或权限能力；协议`_meta`不进模型正文。`isError=true`沿原正文错误路径，不把新增结构化负载写进Learning错误事件。旧文本与媒体占位保留，入站4MiB及执行层结果预算/无痕生命周期沿既有路径；没有真实GitHub MCP Server、OAuth、外部Agent或Provider调用。#836的静态目录交付与66项旧基线有界回归分别记账，后者不是当前源码复验。7项离线Rust测试（含36组JSON/文字/版本组合）、中英手册15+15对齐及普通pre-push通过：Rust5417项/7项既有ignored、前端301文件/1735项。正式交付 [PR #837](https://github.com/shiwenwen/hope-agent/pull/837)，最终精确头审查、CI与合并终态以交付回执为准。
 
 ## 2026-10-17：依赖主责接续 OpenAI 临期目录
 
@@ -243,7 +277,7 @@ prepare `exit=0/ok=true`；基线 **29aef3279f1c19610fd58b5dc9c8b53dda3f9f4b**�
 | `12-FTR-006` | 待决策 | 10-04 FTR-006 | 新接管/交回控制合同与 owner 实验门未启动；建议6组 fake表单×3，要求正式事件屏障，不能将刷新暂停或 role/text 重定位当停止/授权；无运行成绩。 |
 | `06-SDK-01` | 部分交付 | 10-06 SDK-01 | 修补 Tauri 跨窗口 IPC Channel：Tauri 2.11.6锁与最低约束；上游queue源码有所属webview隔离/关闭清理。workspace与当前头CI证据另列；真实双webview大响应/聊天流验收尚无本轮结果，取得隔离设备fixture后重评。 |
 | `06-SDK-02` | 部分交付 | 10-06 SDK-02 | 升级 PDF 文本解析，阻断小文件栈溢出：ha-core/ha-design配对pdf-extract0.12.1→lopdf0.42.0；合成10380层PDF子进程、正常两页/空页回归，证据见定向日志。图像/PDFium和真实用户PDF不在该文本补丁验收内；失败保持受控文本回退。 |
-| `06-SDK-04` | 部分交付 | 10-06 SDK-04 | 独立提升 rustls 与 h2 安全补丁：Cargo.lock rustls0.23.46（10-18补丁）/h2 0.4.16，保留native-tls；共享rustls支线未忽略。公告与resolver/编译可复核，未运行畸形TLS握手/空DATA专用攻击fixture；有平台fixture后复核，不能回退脆弱下限。 |
+| `06-SDK-04` | 部分交付 | 10-06 SDK-04 | 独立提升 rustls 与 h2 安全补丁：Cargo.lock rustls0.23.46（10-18补丁）/h2 0.4.16，保留native-tls；共享rustls支线未忽略。公告与resolver/编译可复核，未运行畸形TLS握手/空DATA专用攻击fixture；有平台fixture后复核，不能回退脆弱下限。；10-18依赖主责PR838已MERGED，rustls0.23.46；真实TLS/H2攻击与平台专项未验，卡仍部分交付。 |
 | `06-SDK-05` | 部分交付 | 10-06 SDK-05 | 同时修补自有 XML 与 calamine 传递链：自有quick-xml0.41.0及calamine0.36.1配对，XML1.0归一化API、原深度/属性/实体/ZIP预算保留；合成Excel类型/空白及Office负例证据见定向日志。xcb构建链0.30.0仍待上游兼容，真实Office样本未授权。 |
 | `06-SDK-06` | 部分交付 | 10-06 SDK-06 | 采用 Tokio 进程与取消生命周期修复：Tokio1.53.2安全生命周期补丁已锁，原MCP kill_on_drop/JobManager/Stop保持。取消/子进程相关现有测试与跨平台CI另列，不把macOS编译宣称Windows句柄实机证明。 |
 | `06-SDK-07` | 部分交付 | 10-06 SDK-07 | 将 updater 降级决定收回应用配置：updater Rust/JS精确2.12.0、应用allowDowngrades=false；既有GUI回归与workspace check证据另列。未使用生产源/安装真实更新，本地签名降级manifest与完整平台安装仍待fixture；不得由renderer覆盖或回退版本门。 |
@@ -260,7 +294,7 @@ prepare `exit=0/ok=true`；基线 **29aef3279f1c19610fd58b5dc9c8b53dda3f9f4b**�
 | `06-SDK-20` | 部分交付 | 10-06 SDK-20 | CodeMirror 补丁更新先验证 IME 安装锚点：CodeMirror6.43.13与单份state6.7.6正式包已安装，ESM/CJS两处scoped EditContext patch锚点成功；补丁和作用域flag保留。类型/前端门禁另列；真实Android/中文IME设备验收未运行，不删shim绕过安装。 |
 | `10-A13` | 观察 | 10-02 A13 | LINE日本10-01、台湾11-01成本检查点；地区/套餐和具体费率未核。本轮不查询真实quota、不更改回复/Push模式；owner确认相关账号和预算后冻结按接收人数、Reply不计的只读指标。 |
 | `10-O2` | 观察 | 10-02 O2 | Google Chat用户OAuth MCP是独立DP主动工具机会；当前chat.bot权限不继承。先取得明确上下文需求/DP资格并冻结双空间scope、撤权和个人数据日志门，再由owner启动；不申请OAuth、不扩bot scopes。 |
-| `12-FTR-007` | 待决策 | 10-11 FTR-007 | 新增criterion级只读有效证据进展诊断；已有watchdog/重复blocking/预算门不重建。首片6组×3内存轨迹，冻结progress/stalled/cycle/insufficient_evidence标签，source/evidence版本和revision窗口；0模型/网络/生产DB、18样本/60秒是提案。owner冻结标签/夹具和启动门后才做；不改block/continue/closure或新增belief/用户记忆真相源，无运行收益。 |
+| `12-FTR-007` | 待决策 | 10-11 FTR-007 | 新增criterion级只读有效证据进展诊断；已有watchdog/重复blocking/预算门不重建。首片6组×3内存轨迹，冻结progress/stalled/cycle/insufficient_evidence标签，source/evidence版本和revision窗口；0模型/网络/生产DB、18样本/60秒是提案。owner冻结标签/夹具和启动门后才做；不改block/continue/closure或新增belief/用户记忆真相源，无运行收益。；10-18研究补充event/criterion/source_version支持及关键失败unknown；保留四标签与18样本提案，不导入上游分类枚举、数据集或模型Judge，未实验。 |
 
 ### 关联任务与下轮准入
 
@@ -346,7 +380,7 @@ prepare `exit=0/ok=true`；基线 **29aef3279f1c19610fd58b5dc9c8b53dda3f9f4b**�
 | `04-A7` | 部分交付 | 10-01 A7 → 旧 URI 卡 | #723 的版本绑定 URI 保留；本轮 task 终态匿名 fixture 关联 04-A10，完整 list/read/batch/commit 与真实版本部署矩阵仍缺证据。 |
 | `04-A8` | 待授权 | A8 | Parse 与本地抽取同 chunker 基准需文档数据/账户/费用批准；未调用外部解析。 |
 | `04-A9` | 待授权 | 10-01 A9 | #777 已合入 Global 召回修复；撤权、来源更新竞态与最终引用/行动的行为评测仍未运行，沿数据/模型预算门。 |
-| `05-A1` | 部分交付 | 10-02 A1 → 旧 MCP 双栈 | #737 逐请求版本/缓存字段仍在；rmcp 3.5.0 候选、新旧官方 conformance/并发 NDJSON 限额缺完整当前构建 fixture，不把 SDK 版本等同 Hope 结果。 |
+| `05-A1` | 部分交付 | 10-02 A1 → 旧 MCP 双栈 | #737 逐请求版本/缓存字段仍在；rmcp 3.5.0 候选、新旧官方 conformance/并发 NDJSON 限额缺完整当前构建 fixture，不把 SDK 版本等同 Hope 结果。；10-18继续原PR837，同步main文档冲突，复审新增Hook协议格式修复及内存全链回归；旧头CI不作新头验收，最终新头复审/CI/保护合并待本轮回执。 |
 | `05-A10` | 已交付 | 09-18 A4（新增） | #737 已交付的 ACP tool_call 首报/重放可选 name，Control 信息性读取、空值回退；权限不读取 name。 |
 | `05-A11` | 待决策 | 10-02 A7 | 远程 Skill 来源主键、manifest 摘要、动态技能确认与撤销合同未冻结；资源读取不激活、allowed-tools 不授予权限，缓存不入本地扫描目录。 |
 | `05-A12` | 待决策 | 10-02 A8 | MCP Apps Host 是默认关闭的新能力面；需来源/会话/iframe/CSP/Host权限合同，不能直接加载 Registry HTML 或继承 owner 凭据。 |
@@ -401,11 +435,11 @@ prepare `exit=0/ok=true`；基线 **29aef3279f1c19610fd58b5dc9c8b53dda3f9f4b**�
 | `11-A4` | 待决策 | A4 | 页面能力代理仍受 owner 决策、最小权限和默认零网络门，不据竞品扩权。 |
 | `11-A5` | 部分交付 | A5 | 固定版本评审后端已有；评审人页面需身份/部署方式和入口合同，未发布外部评审。 |
 | `12-FTR-001` | 已交付 | 09-13 FTR-001 / 09-20 closed | #723 已合并且 09-20 雷达明确关闭，当前无新反证；不重跑领域评测冒充新成绩。 |
-| `12-FTR-002` | 待决策 | FTR-002 | 归档明确要求 owner 选择隔离产物 PoC；未授权真实办公套件/数据或默认生产接入。 |
+| `12-FTR-002` | 待决策 | FTR-002 | 归档明确要求 owner 选择隔离产物 PoC；未授权真实办公套件/数据或默认生产接入。；10-18研究补充source-output-rule版本绑定；复用既有Artifact字节hash，未知保持unknown；两夹具/12负例/三次重复仍为首片提案，产品合同未启动，未运行专项。 |
 | `12-FTR-003` | 待证据 | FTR-003 | 本地 PoC 可由本流程选择，但现有 adapter 仍为回合后顺序追加；缺正式入口在途事件锚点/隔离 hook 证据，本周不造 sleep 假覆盖。 |
 | `12-FTR-004` | 部分交付 | 09-20 FTR-004（新增） | #737 的内存 SQLite 八周合成 PoC，原12类检查通过，本周未重新执行；生产模板/Goal revision 对接、展示文案和样本门需后续决策。 |
 | `12-FTR-005` | 部分交付 | 10-04 FTR-005 → 09-27 同 ID | #775 现有 151 行 typed 内存 PoC，原4组×3作者自测；本周静态复核范围与弱 presence 基线，未宣称另一执行者复现、生产 Domain Quality 或真实文件验收。 |
-| `12-FTR-006` | 待决策 | 10-04 FTR-006 | 新接管/交回控制合同与 owner 实验门未启动；建议6组 fake表单×3，要求正式事件屏障，不能将刷新暂停或 role/text 重定位当停止/授权；无运行成绩。 |
+| `12-FTR-006` | 待决策 | 10-04 FTR-006 | 新接管/交回控制合同与 owner 实验门未启动；建议6组 fake表单×3，要求正式事件屏障，不能将刷新暂停或 role/text 重定位当停止/授权；无运行成绩。；10-18研究区分副作用未知、已执行及未执行，以及旧结果发布与资源回收；六组乘三仍为产品控制合同提案，不由暂停或同文案恢复授权，不增加自动重试。 |
 
 ### 关联任务与下轮准入
 
@@ -839,3 +873,12 @@ A07（新渠道与资格）、A08（多维计价）、A09（运行时升级与�
 - 模型：官方端点/精确模型请求档位、Cloudflare 新建模板、Copilot 默认候选、Sol/Sonnet 5 直连基础报价；用户既有配置不自动覆盖。中英文安装/平台支持说明同步。
 - 正常 push 已完整通过 pre-push：格式检查、clippy、内部特征编译检查、类型检查、lint、架构守卫、前端 281 个文件 / 1603 个测试与全部规定 Rust 测试；新增供应链回归 5/5。国际化缺失/多余/插值/排序均为零，10 个工作流 YAML 解析通过。两个既有前端 Hook 警告无新增错误。未补跑报告、未跑真实模型或付费实验。
 - PR 复审补齐两项同范围缺口：模型任务所有前端安装/重新下载/重试入口实时检查手工安装前提；工作流守卫改为结构解析，防止行内写法漏检。新增手工安装与对话框回归 11 项，供应链回归扩至 9 项；定向验证通过。完整门禁及最新提交复审结果继续以 PR 记录为准，行动卡交付范围与授权门不变。
+
+### 2026-10-18 补充来源稳定卡
+
+| 稳定ID | 状态 | 来源、主责与重新评估条件 |
+| --- | --- | --- |
+| `rustsec:zip-extraction-20261017` | 待证据 | RUSTSEC-2026-0367/0368/0369; dependency intake；主责 `hope-agent-3`；三项ZIP公告统一组；已复核直接/传递调用，安全权限/符号链接隔离夹具及兼容维护待10-19接续；不强行跨主版本，不宣称全图安全。 |
+| `rustsec:zbus-standalone-20261018` | 待证据 | RUSTSEC-2026-0370/0371/0372; Oct18 dependency evidence；主责 `hope-agent-3`；停止独立维护提示，非新漏洞且无硬停用日；10-25前核Linux传递链与上游zbus6兼容路径，无宿主变更。 |
+| `DISC-833` | 待决策 | github-discussions:DISC-833; Oct18 immutable intake；主责 `automation-7`；88API非独家赞助咨询，沿DISC-833-SPONSORSHIP；10-18所有者选择只评估品牌MCP，赞助暂缓，不回复或报价。 |
+| `DISC-815` | 待决策 | github-discussions:DISC-815; Oct18 immutable intake；主责 `automation-7`；第三方品牌MCP模板沿DISC-815-BRANDED-MCP；10-18所有者仅批准范围评估，现有添加表单可复用，必需凭据引用阻断及官方固定来源仍缺；评估完成，实施/公开回复仍未授权。 |
