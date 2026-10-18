@@ -1,5 +1,13 @@
 # 行动卡统一迭代台账
 
+## 2026-10-18：依赖主责接续 TLS 安全补丁
+
+`hope-agent-3` 精确 prepare 基线 `61737ff55b7d349bffa20c5da43742098da584b3`，运行 `20261018T033443-18a03159`；本轮唯一维护包 [PR #838](https://github.com/shiwenwen/hope-agent/pull/838) 接续 `sdk-api:SDK-04` / `06-SDK-04`，共享锁文件将 rustls 0.23.45 提升至正式版 0.23.46。官方 10-14 四项公告及调用条件见[安全合同](../infra/security.md#2026-10-18-rustls-安全补丁)；保留 native-tls、现有依赖特征与传输权限。源码没有直接 ECH/会话 Debug 配置，不将版本命中当成攻击复现。普通 hooks、精确头 CI、审查与保护合入由同一 run 留证；畸形 TLS/H2 专项和真实 Provider 不在本轮范围，整卡仍部分交付。
+
+完整分页的机器人 PR #825/#826/#834 精确 head 与失败检查均未变，分别为 Tauri 两端版本、rand 0.10 API、React Hooks lint 的代码兼容问题；不盲目重跑或合入。`rustsec:zip-extraction-20261017` 完成直接及传递调用复核：自有 ZIP 读取不调用自动解包；Tauri updater 2.12.0 的自动 ZIP 解包属于 Windows 更新分支，不能把 Unix 权限/符号链接条件直接套用；calamine 读取 ZIP 条目。Chrome/FFmpeg 的手工权限复制仍应有界加固，并保留固定资产来源/大小/SHA 校验；不强塞 ZIP 9 到多个不兼容主版本，也不宣称全图无风险。该组仍归依赖主责，后续以隔离权限夹具与版本兼容证据收口。
+
+新增入库的 `RUSTSEC-2026-0370/0371/0372` 是 zvariant/zbus_names/zvariant_derive 停止独立维护提示，统一来源 `rustsec:zbus-standalone-20261018`，由依赖主责跟踪 Linux 传递链及上游 zbus 6 迁移；没有修复版本或硬停用日期，不当新漏洞、不强行跨主版本替换。ammonia 未入锁；lopdf 公告补充已修复下限，当前 0.42.0 已满足。OpenAI 官方页面仅移除一条历史重复行，近期截止未变；#836 的目录交付不重复。Chrome 10-15、Node 10-21、xAI 11-02 以及 `09-A-03` 沿原稳定 ID 与主责继续。
+
 ## 2026-10-17：依赖主责接续 OpenAI 临期目录
 
 `hope-agent-3` 精确 prepare 成功，基线 `323d07fc966fb90840460364618726ecc02ac6f6`，运行 `20261017T033245-a2d7735d`；本轮一个相关维护包 [PR #836](https://github.com/shiwenwen/hope-agent/pull/836) 接续 `embedding:A1`（既有台账关联 `02-A3`）与 `llm-provider:OPENAI-LEGACY-20261023`。在 [官方公告](https://developers.openai.com/api/docs/deprecations) 的 10-23 截止前，新建 OpenAI 图像模板移除 `gpt-image-1`、保留已有 `gpt-image-2` 为首选；两个直连聊天模板移除 `o1` / `o1-pro` / `o3-mini` / `o4-mini`，保留既有 GPT-5.6 候选，并按官方深度研究说明清理7-23已停用的 `o3-deep-research` / `o4-mini-deep-research`；这是本轮审查补漏，不作为新退役公告。已存模型、active/fallback、自定义及网关不改写；`overview.rs` 的旧型号是脱敏测试夹具，不是运行时默认值。18项前端目录检查与Rust图像目录定向检查通过，中英手册、Provider/媒体合同同步；普通hooks、最终精确头CI、审查线程、保护合入和远端逐文件读回由本任务交付回执记录。真实生成/编辑、质量、账号、费用及用户配置迁移仍待各自合同，整卡保持部分交付，其他任务不重复建目录PR。
@@ -103,7 +111,7 @@ prepare `exit=0/ok=true`；基线 **29aef3279f1c19610fd58b5dc9c8b53dda3f9f4b**�
 | 优先级 / 来源 | 用户工作流、基线与本轮范围 | 验收、实测和剩余边界 |
 | --- | --- | --- |
 | P0 / 06 SDK-01/02/03 | 多窗口大响应、PDF文本导入、侧聊/摘要/媒体/嵌入带凭据请求；修安全版本并禁止自动redirect | Tauri2.11.6；pdf-extract0.12.1/lopdf0.42；直接reqwest0.13.5保留native-tls及query/form。两项本地redirect回归通过；PDF子进程/分页3项、Office12项与workspace检查通过。Telegram SDK客户端独立0.12.28，未改代理或放宽SSRF；真实多窗口/TLS/Provider不宣称验收 |
-| P1 / 06 SDK-04/05/06/07/10 | 保持现有HTTP/TLS、Office、取消、更新、MCP工作流，定点维护依赖 | rustls0.23.45/h2 0.4.16/Tokio1.53.2、quick-xml0.41/calamine0.36.1、updater两端2.12.0、rmcp3.5.1。updater应用拒绝降级；现有XML/ZIP预算保留。畸形TLS/H2、真实安装、完整conformance仍待各自fixture |
+| P1 / 06 SDK-04/05/06/07/10 | 保持现有HTTP/TLS、Office、取消、更新、MCP工作流，定点维护依赖 | rustls0.23.46/h2 0.4.16/Tokio1.53.2、quick-xml0.41/calamine0.36.1、updater两端2.12.0、rmcp3.5.1。updater应用拒绝降级；现有XML/ZIP预算保留。畸形TLS/H2、真实安装、完整conformance仍待各自fixture |
 | P2 / 06 SDK-08/09/18 | 计量缓存、图表清洗、脚本沙箱沿现有API补安全下限 | lru0.18.5、DOMPurify3.4.16、QuickJS0.14+serde0.8成对；不新增unsafe/扩大过滤或更改取消。缓存/脚本/跨平台门禁证据以日志/当前头CI为准 |
 | P2 / 06 SDK-11/20 | 保持客户端MP4和中文编辑器工作流，替换停更封装器、核补丁锚点 | Mediabunny1.61.3隔离候选最终MP4两帧读回、异步写/编码失败清理3项通过；CodeMirror6.43.13/state6.7.6 ESM/CJS scoped patch通过。原时间戳/关键帧/IME scope保留；生产默认不切换；真实WebView编码/播放、设备IME及速度未知 |
 | 状态维护 / 全专项 | 逐卡来源/主责/阻塞/重评条件，保留所有真实实验与产品决策门 | FTR-007首片标签/夹具/启动需owner冻结；FTR-002/006、Design计划与付费/账号/用户数据仍关闭。拟定指标不写成收益，技术栈可等待项不为追版本制造改动 |
@@ -235,7 +243,7 @@ prepare `exit=0/ok=true`；基线 **29aef3279f1c19610fd58b5dc9c8b53dda3f9f4b**�
 | `12-FTR-006` | 待决策 | 10-04 FTR-006 | 新接管/交回控制合同与 owner 实验门未启动；建议6组 fake表单×3，要求正式事件屏障，不能将刷新暂停或 role/text 重定位当停止/授权；无运行成绩。 |
 | `06-SDK-01` | 部分交付 | 10-06 SDK-01 | 修补 Tauri 跨窗口 IPC Channel：Tauri 2.11.6锁与最低约束；上游queue源码有所属webview隔离/关闭清理。workspace与当前头CI证据另列；真实双webview大响应/聊天流验收尚无本轮结果，取得隔离设备fixture后重评。 |
 | `06-SDK-02` | 部分交付 | 10-06 SDK-02 | 升级 PDF 文本解析，阻断小文件栈溢出：ha-core/ha-design配对pdf-extract0.12.1→lopdf0.42.0；合成10380层PDF子进程、正常两页/空页回归，证据见定向日志。图像/PDFium和真实用户PDF不在该文本补丁验收内；失败保持受控文本回退。 |
-| `06-SDK-04` | 部分交付 | 10-06 SDK-04 | 独立提升 rustls 与 h2 安全补丁：Cargo.lock rustls0.23.45/h2 0.4.16，保留native-tls；共享rustls支线未忽略。公告与resolver/编译可复核，未运行畸形TLS握手/空DATA专用攻击fixture；有平台fixture后复核，不能回退脆弱下限。 |
+| `06-SDK-04` | 部分交付 | 10-06 SDK-04 | 独立提升 rustls 与 h2 安全补丁：Cargo.lock rustls0.23.46（10-18补丁）/h2 0.4.16，保留native-tls；共享rustls支线未忽略。公告与resolver/编译可复核，未运行畸形TLS握手/空DATA专用攻击fixture；有平台fixture后复核，不能回退脆弱下限。 |
 | `06-SDK-05` | 部分交付 | 10-06 SDK-05 | 同时修补自有 XML 与 calamine 传递链：自有quick-xml0.41.0及calamine0.36.1配对，XML1.0归一化API、原深度/属性/实体/ZIP预算保留；合成Excel类型/空白及Office负例证据见定向日志。xcb构建链0.30.0仍待上游兼容，真实Office样本未授权。 |
 | `06-SDK-06` | 部分交付 | 10-06 SDK-06 | 采用 Tokio 进程与取消生命周期修复：Tokio1.53.2安全生命周期补丁已锁，原MCP kill_on_drop/JobManager/Stop保持。取消/子进程相关现有测试与跨平台CI另列，不把macOS编译宣称Windows句柄实机证明。 |
 | `06-SDK-07` | 部分交付 | 10-06 SDK-07 | 将 updater 降级决定收回应用配置：updater Rust/JS精确2.12.0、应用allowDowngrades=false；既有GUI回归与workspace check证据另列。未使用生产源/安装真实更新，本地签名降级manifest与完整平台安装仍待fixture；不得由renderer覆盖或回退版本门。 |
