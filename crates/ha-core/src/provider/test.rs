@@ -581,7 +581,7 @@ fn hydrate_probe_credentials(
     Ok(())
 }
 
-fn resolve_probe_profile(config: &mut ProviderConfig) -> Result<Option<String>, String> {
+pub(super) fn resolve_probe_profile(config: &mut ProviderConfig) -> Result<Option<String>, String> {
     // HTTP settings only hold masked keys. Restore secrets into this request's
     // draft by stable IDs; never replace unsaved profile settings or write back.
     if config.api_type != ApiType::Codex

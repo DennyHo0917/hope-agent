@@ -4033,7 +4033,20 @@
     "currencyCny": "人民币 (CNY)",
     "currencyDesc": "本 Provider 模型单价的币种。单价请照厂商价目页原文填写，成本统计会自动换算为美元。",
     "title": "模型服务商",
-    "waitingBrowserLogin": "等待浏览器登录…"
+    "waitingBrowserLogin": "等待浏览器登录…",
+    "discovery": {
+      "action": "发现模型",
+      "description": "仅查询模型列表，不发送测试对话。先勾选、填写令牌上限并确认，再加入待保存列表。新条目默认纯文本且关闭推理，其他能力和价格可在保存前继续编辑。",
+      "error": "无法发现模型。请检查 API 基础地址、凭据和网络策略，或手动添加模型。",
+      "truncated": "列表未完整读取，仍可手动添加缺少的模型。",
+      "search": "搜索发现的模型",
+      "empty": "没有可新增的模型，已有条目保持不变。",
+      "select": "选择 {{id}}",
+      "context": "{{id}} 的上下文上限",
+      "output": "{{id}} 的输出上限",
+      "confirm": "我已确认所选模型支持文本对话和工具调用，并向服务商核对以上令牌上限。",
+      "add": "加入所选（{{count}}）"
+    }
   },
   "provider_templates": {
     "anthropic": {

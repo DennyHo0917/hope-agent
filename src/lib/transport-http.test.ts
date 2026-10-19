@@ -5,6 +5,15 @@ import { TRANSPORT_EVENT_RESYNC_REQUIRED } from "./transport"
 
 const fetchMock = vi.fn()
 
+test("HTTP discovery flattens the draft config and returns the typed list without inference normalization", async () => {
+  const result = { models: [{ id: "model-A", name: "Model A" }], truncated: false }
+  fetchMock.mockResolvedValue(new Response(JSON.stringify(result), { status: 200, headers: { "content-type": "application/json" } }))
+  const config = { id: "saved-provider", apiType: "openai-chat", apiKey: "masked...key", authProfiles: [], models: [] }
+  const transport = new HttpTransport("http://localhost:8420", "synthetic-owner")
+  expect(await transport.call("discover_provider_models", { config })).toEqual(result)
+  expect(fetchMock).toHaveBeenCalledExactlyOnceWith("http://localhost:8420/api/providers/discover-models", expect.objectContaining({ method: "POST", body: JSON.stringify(config) }))
+})
+
 test("HTTP directory browsing encodes the optional folder-only filter", async () => {
   fetchMock.mockImplementation(async () => new Response(JSON.stringify({ entries: [] }), { status: 200 }))
   const transport = new HttpTransport("http://localhost:8420", "synthetic-owner")

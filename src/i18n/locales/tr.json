@@ -4033,7 +4033,20 @@
     "currencyCny": "Çin Yuanı (CNY)",
     "currencyDesc": "Bu sağlayıcının model fiyatlarının para birimi. Fiyatları sağlayıcının fiyat sayfasında listelendiği şekilde girin; maliyet istatistikleri otomatik olarak USD'ye dönüştürülür.",
     "title": "Sağlayıcılar",
-    "waitingBrowserLogin": "Tarayıcı girişi bekleniyor..."
+    "waitingBrowserLogin": "Tarayıcı girişi bekleniyor...",
+    "discovery": {
+      "action": "Modelleri keşfet",
+      "description": "Test sohbeti göndermeden model listesini okur. Modelleri seçin, belirteç sınırlarını girip onaylayın; kaydedilmemiş listeye eklenirler. Yeni kayıtlar yalnızca metin kullanır ve akıl yürütme kapalıdır; diğer yetenekleri ve fiyatları kaydetmeden önce düzenleyebilirsiniz.",
+      "error": "Modeller keşfedilemedi. API temel URL’sini, kimlik bilgilerini ve ağ politikasını kontrol edin veya elle ekleyin.",
+      "truncated": "Liste eksik. Bulunamayan modelleri elle ekleyebilirsiniz.",
+      "search": "Keşfedilen modelleri ara",
+      "empty": "Eklenecek yeni model yok. Mevcut kayıtlar korunur.",
+      "select": "{{id}} seç",
+      "context": "{{id}} bağlam sınırı",
+      "output": "{{id}} çıktı sınırı",
+      "confirm": "Seçili modellerin metin sohbetini ve araç çağrılarını desteklediğini doğruladım ve belirteç sınırlarını sağlayıcıyla kontrol ettim.",
+      "add": "Seçilenleri ekle ({{count}})"
+    }
   },
   "provider_templates": {
     "anthropic": {

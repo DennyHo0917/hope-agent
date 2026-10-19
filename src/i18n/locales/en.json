@@ -4033,7 +4033,20 @@
     "currencyCny": "Chinese Yuan (CNY)",
     "currencyDesc": "Currency of this provider's model prices. Enter prices exactly as listed on the vendor's pricing page; cost analytics convert them to USD automatically.",
     "title": "Providers",
-    "waitingBrowserLogin": "Waiting for browser login..."
+    "waitingBrowserLogin": "Waiting for browser login...",
+    "discovery": {
+      "action": "Discover models",
+      "description": "Read the model list without sending a test conversation. Select models, enter token limits and confirm before adding them to the unsaved list. New entries use text input with reasoning off; edit other capabilities and prices before saving.",
+      "error": "Could not discover models. Check the API base URL, credentials and network policy, or add models manually.",
+      "truncated": "This list is incomplete. You can still add missing models manually.",
+      "search": "Search discovered models",
+      "empty": "No new models to add. Existing entries are preserved.",
+      "select": "Select {{id}}",
+      "context": "Context limit for {{id}}",
+      "output": "Output limit for {{id}}",
+      "confirm": "I verified that the selected models support text chat and tool calls, and checked these token limits with the provider.",
+      "add": "Add selected ({{count}})"
+    }
   },
   "provider_templates": {
     "anthropic": {

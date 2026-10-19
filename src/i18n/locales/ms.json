@@ -4033,7 +4033,20 @@
     "currencyCny": "Yuan China (CNY)",
     "currencyDesc": "Mata wang harga model pembekal ini. Masukkan harga seperti yang tersenarai pada halaman harga vendor; statistik kos akan ditukar secara automatik kepada USD.",
     "title": "Penyedia",
-    "waitingBrowserLogin": "Menunggu log masuk pelayar..."
+    "waitingBrowserLogin": "Menunggu log masuk pelayar...",
+    "discovery": {
+      "action": "Temui model",
+      "description": "Baca senarai tanpa menghantar perbualan ujian. Pilih model, masukkan had token dan sahkan untuk menambahnya ke senarai yang belum disimpan. Entri baharu menggunakan teks sahaja tanpa penaakulan; keupayaan lain dan harga boleh diedit sebelum disimpan.",
+      "error": "Model tidak dapat ditemui. Semak URL asas API, kelayakan dan dasar rangkaian atau tambah model secara manual.",
+      "truncated": "Senarai tidak lengkap. Model yang tiada masih boleh ditambah secara manual.",
+      "search": "Cari model yang ditemui",
+      "empty": "Tiada model baharu untuk ditambah. Entri sedia ada dikekalkan.",
+      "select": "Pilih {{id}}",
+      "context": "Had konteks {{id}}",
+      "output": "Had output {{id}}",
+      "confirm": "Saya telah mengesahkan model terpilih menyokong sembang teks dan panggilan alat serta menyemak had token ini dengan penyedia.",
+      "add": "Tambah pilihan ({{count}})"
+    }
   },
   "provider_templates": {
     "anthropic": {

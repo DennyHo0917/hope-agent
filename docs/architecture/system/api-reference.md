@@ -929,6 +929,7 @@ turn），调用方必须据此自行收敛本地活动状态，不得继续空�
 | `delete_provider` | `DELETE /api/providers/{providerId}` | ✅ |
 | `reorder_providers` | `POST /api/providers/reorder` | ✅ |
 | `test_provider` | `POST /api/providers/test` | ✅ |
+| `discover_provider_models` | `POST /api/providers/discover-models` | ✅；已鉴权，接收 ProviderConfig 草稿，返回 `{ models: [{ id, name }], truncated }`；只读列表、不调用推理或保存配置 |
 | `test_model` | `POST /api/providers/test-model` | ✅ |
 | `test_proxy` | `POST /api/config/proxy/test` | ✅ |
 | `has_providers` | `GET /api/providers/has-any` | ✅ |

@@ -4033,7 +4033,20 @@
     "currencyCny": "Yuan chino (CNY)",
     "currencyDesc": "Moneda de los precios de modelo de este proveedor. Introduzca los precios exactamente como aparecen en la página de precios del proveedor; las estadísticas de costes se convierten automáticamente a USD.",
     "title": "Proveedores",
-    "waitingBrowserLogin": "Esperando inicio de sesión en el navegador..."
+    "waitingBrowserLogin": "Esperando inicio de sesión en el navegador...",
+    "discovery": {
+      "action": "Descubrir modelos",
+      "description": "Consulta la lista sin enviar conversaciones de prueba. Selecciona modelos, introduce los límites de tokens y confirma para añadirlos a la lista sin guardar. Se añaden solo con texto y sin razonamiento; puedes editar las demás capacidades y precios antes de guardar.",
+      "error": "No se pudieron descubrir modelos. Revisa la URL base, las credenciales y la política de red, o añade modelos manualmente.",
+      "truncated": "La lista está incompleta. Puedes añadir los modelos que falten manualmente.",
+      "search": "Buscar modelos descubiertos",
+      "empty": "No hay modelos nuevos que añadir. Se conservan los existentes.",
+      "select": "Seleccionar {{id}}",
+      "context": "Límite de contexto de {{id}}",
+      "output": "Límite de salida de {{id}}",
+      "confirm": "He verificado que los modelos seleccionados admiten chat de texto y llamadas a herramientas, y he comprobado estos límites con el proveedor.",
+      "add": "Añadir seleccionados ({{count}})"
+    }
   },
   "provider_templates": {
     "anthropic": {

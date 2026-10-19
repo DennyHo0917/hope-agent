@@ -4033,7 +4033,20 @@
     "currencyCny": "Nhân dân tệ (CNY)",
     "currencyDesc": "Đơn vị tiền tệ của giá mô hình thuộc nhà cung cấp này. Nhập giá đúng như niêm yết trên trang giá của nhà cung cấp; thống kê chi phí sẽ tự động quy đổi sang USD.",
     "title": "Nhà cung cấp",
-    "waitingBrowserLogin": "Đang chờ đăng nhập trình duyệt..."
+    "waitingBrowserLogin": "Đang chờ đăng nhập trình duyệt...",
+    "discovery": {
+      "action": "Khám phá mô hình",
+      "description": "Chỉ đọc danh sách, không gửi hội thoại thử. Chọn mô hình, nhập giới hạn token rồi xác nhận để thêm vào danh sách chưa lưu. Mục mới chỉ dùng văn bản và tắt suy luận; có thể sửa khả năng khác và giá trước khi lưu.",
+      "error": "Không thể khám phá mô hình. Kiểm tra URL gốc API, thông tin xác thực và chính sách mạng hoặc thêm thủ công.",
+      "truncated": "Danh sách chưa đầy đủ. Bạn vẫn có thể thêm mô hình còn thiếu bằng tay.",
+      "search": "Tìm mô hình đã khám phá",
+      "empty": "Không có mô hình mới để thêm. Các mục hiện có được giữ nguyên.",
+      "select": "Chọn {{id}}",
+      "context": "Giới hạn ngữ cảnh của {{id}}",
+      "output": "Giới hạn đầu ra của {{id}}",
+      "confirm": "Tôi đã xác minh các mô hình đã chọn hỗ trợ trò chuyện văn bản và gọi công cụ, đồng thời kiểm tra giới hạn token với nhà cung cấp.",
+      "add": "Thêm mục đã chọn ({{count}})"
+    }
   },
   "provider_templates": {
     "anthropic": {

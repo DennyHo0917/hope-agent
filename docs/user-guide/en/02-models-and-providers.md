@@ -70,6 +70,12 @@ Autocomplete works when adding or editing models without replacing your relay's 
 
 > Suggestions come from built-in templates, not an online probe of models available through your relay. The same model ID can have different context limits at different providers. Check the suggestion's source and use the ID, capabilities, and actual pricing supported by your provider.
 
+In the wizard’s model step or the provider edit page, choose **Discover models** to read the current endpoint’s online model list. Select the entries to add, enter context and maximum output token limits, and confirm that they support text chat and tool calls. Nothing is selected automatically. Existing models are neither duplicated nor overwritten. The additions remain a draft until you save the provider; new entries use text input with reasoning off, and you can edit capabilities and pricing before saving.
+
+For a local or private-network Base URL, explicitly enable **Allow private network** in the wizard’s connection step before discovery. It defaults to off and is saved with the provider; discovery never enables private access automatically.
+
+Discovery only reads the model list and sends no test conversation. A listed model is not proof of chat compatibility. If the endpoint is unsupported, access is denied, or network policy blocks the request, you can still add models manually. An incomplete list is marked. This version reads only IDs and display names, without inferring purpose, token limits, or pricing from names. ChatGPT OAuth providers keep their existing catalog instead of using this entry point.
+
 ### Common provider settings
 
 In the provider list you can drag to reorder, enable / disable, edit, and delete (via the "⋮" menu on the right). The edit page also has these fields:

@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **模型发现**：添加或编辑自定义服务商时可获取模型列表、勾选并补齐参数后新增，保留已有模型与当前选用配置。 (#844)
+
 ### Fixed
 
 - **Linux 目录选择**：会话工作目录和项目文件夹入口改用仅显示文件夹的应用内浏览器，可粘贴路径定位；其他桌面平台保留系统选择器。 (#843)
