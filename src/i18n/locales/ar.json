@@ -8796,7 +8796,10 @@
       "save": "حفظ التفضيلات",
       "saving": "جارٍ الحفظ…",
       "saved": "تم الحفظ"
-    }
+    },
+    "contextCompactSummaryReasoning": "استدلال خاص بالملخص",
+    "contextCompactSummaryReasoningDefault": "الإبقاء على السياسة الحالية",
+    "contextCompactSummaryReasoningDesc": "يؤثر في ملخصات السياق فقط. تعرض المستويات غير المدعومة خطأ مع الاحتفاظ بالسجل. لا يؤدي الفشل إلى تبديل النموذج أو زيادة حد الإخراج تلقائيًا. يحافظ الافتراضي على السلوك الحالي."
   },
   "shortcuts": {
     "actionOpenSettings": "فتح الإعدادات",

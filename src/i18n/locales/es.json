@@ -8796,7 +8796,10 @@
       "save": "Guardar preferencias",
       "saving": "Guardando…",
       "saved": "Guardado"
-    }
+    },
+    "contextCompactSummaryReasoning": "Razonamiento para resúmenes",
+    "contextCompactSummaryReasoningDefault": "Mantener la política actual",
+    "contextCompactSummaryReasoningDesc": "Solo afecta a los resúmenes de contexto. Los niveles no admitidos muestran un error y conservan el historial. Si falla, no cambia el modelo ni aumenta el límite de salida. El valor predeterminado mantiene el comportamiento actual."
   },
   "shortcuts": {
     "actionOpenSettings": "Abrir ajustes",

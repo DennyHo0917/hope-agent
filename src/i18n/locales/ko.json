@@ -8796,7 +8796,10 @@
       "save": "설정 저장",
       "saving": "저장 중…",
       "saved": "저장됨"
-    }
+    },
+    "contextCompactSummaryReasoning": "요약 전용 추론 설정",
+    "contextCompactSummaryReasoningDefault": "현재 요약 정책 유지",
+    "contextCompactSummaryReasoningDesc": "컨텍스트 요약에만 적용됩니다. 지원하지 않는 단계는 기록을 보존하고 오류를 표시합니다. 실패해도 모델이나 출력 한도를 자동 변경하지 않으며 기본값은 현재 동작을 유지합니다."
   },
   "shortcuts": {
     "actionOpenSettings": "설정 열기",

@@ -8796,7 +8796,10 @@
       "save": "Tercihleri kaydet",
       "saving": "Kaydediliyor…",
       "saved": "Kaydedildi"
-    }
+    },
+    "contextCompactSummaryReasoning": "Özete özel akıl yürütme",
+    "contextCompactSummaryReasoningDefault": "Mevcut özet ilkesini koru",
+    "contextCompactSummaryReasoningDesc": "Yalnızca bağlam özetlerini etkiler. Desteklenmeyen düzeyler hata verir ve geçmişi korur. Hata durumunda model veya çıktı sınırı otomatik değişmez. Varsayılan, mevcut davranışı korur."
   },
   "shortcuts": {
     "actionOpenSettings": "Ayarları aç",

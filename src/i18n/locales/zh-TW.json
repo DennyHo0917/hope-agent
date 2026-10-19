@@ -8796,7 +8796,10 @@
       "save": "儲存偏好",
       "saving": "儲存中…",
       "saved": "已儲存"
-    }
+    },
+    "contextCompactSummaryReasoning": "摘要專用推理覆寫",
+    "contextCompactSummaryReasoningDefault": "保留目前摘要策略",
+    "contextCompactSummaryReasoningDesc": "僅用於上下文摘要。不支援的等級會報錯並保留歷史；失敗後不會自動換模型或提高輸出上限。預設維持現況。"
   },
   "shortcuts": {
     "actionOpenSettings": "開啟設定",

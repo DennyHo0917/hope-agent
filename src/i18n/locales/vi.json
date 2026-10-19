@@ -8796,7 +8796,10 @@
       "save": "Lưu tùy chọn",
       "saving": "Đang lưu…",
       "saved": "Đã lưu"
-    }
+    },
+    "contextCompactSummaryReasoning": "Suy luận riêng cho tóm tắt",
+    "contextCompactSummaryReasoningDefault": "Giữ chính sách hiện tại",
+    "contextCompactSummaryReasoningDesc": "Chỉ áp dụng cho tóm tắt ngữ cảnh. Mức không được hỗ trợ sẽ báo lỗi và giữ lịch sử. Khi lỗi, không tự đổi mô hình hoặc tăng giới hạn đầu ra. Mặc định giữ hành vi hiện tại."
   },
   "shortcuts": {
     "actionOpenSettings": "Mở cài đặt",

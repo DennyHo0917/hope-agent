@@ -198,7 +198,11 @@ Compaction starts with deterministic projections that do not call another model,
 | Reactive micro-compaction | On | Cleans up old tool results as needed at the end of each round |
 | Trigger ratio | 0.75 | Reactive cleanup is triggered when context usage exceeds this ratio |
 | Summarization model | Empty (uses the chat model) | The model used to generate summaries; you can specify a cheaper model to save cost |
+| Summary reasoning override | Keep current summary policy | Changes reasoning only for summaries; failures preserve history without switching models or raising the output limit |
 | Summarization trigger threshold | 0.85 | Summary-based compaction is triggered when usage exceeds this ratio |
+
+If reasoning consumes the output budget and leaves an empty summary, choose an off or lower level that the summary model actually supports. Some models cannot disable reasoning. Unsupported choices produce an explicit error, and an empty summary never replaces the original history. Choose **Keep current summary policy** to restore the previous behavior; this setting does not affect the main conversation or other background one-shot tasks.
+
 
 > These are "behavior adjustment" settings (medium risk) that affect context and cost. The vast majority of users can keep the defaults. Compaction also has a full set of finer parameters (trim ratio, number of recent rounds to keep, file recovery, and so on), all in the "Advanced" area of the same panel—adjust them as needed.
 

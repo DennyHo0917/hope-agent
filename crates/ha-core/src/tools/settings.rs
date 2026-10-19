@@ -79,7 +79,7 @@ const SETTINGS_CATEGORY_RISKS: &[(&str, &str)] = &[
     ("pet", "low"),
     ("local_llm_auto_maintenance", "low"),
     ("stt_language", "low"),
-    ("compact", "medium"),
+    ("compact", "medium"), // Includes the summary-only reasoning/output-cost policy.
     ("session_title", "medium"),
     ("memory_runtime", "medium"),
     ("memory_extract", "medium"),
@@ -239,6 +239,9 @@ fn side_effect_note(category: &str) -> Option<&'static str> {
         ),
         "knowledge_compile" => Some(
             "Changes the model chain used for future Knowledge source-to-note compile summaries. Existing review proposals are unchanged."
+        ),
+        "compact" => Some(
+            "summaryReasoningEffort is null (keep the existing summary protocol policy) or none/minimal/low/medium/high/xhigh/max. It changes only future context-summary requests, never the main conversation or other one-shots. Unsupported provider/model efforts fail explicitly without increasing the output ceiling or replacing history."
         ),
         "reasoning_effort" => Some(
             "Changes the global reasoning-effort default and refreshes the active runtime value immediately; per-session and per-agent overrides still take precedence."

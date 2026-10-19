@@ -8796,7 +8796,10 @@
       "save": "設定を保存",
       "saving": "保存中…",
       "saved": "保存済み"
-    }
+    },
+    "contextCompactSummaryReasoning": "要約専用の推論設定",
+    "contextCompactSummaryReasoningDefault": "現在の要約方針を維持",
+    "contextCompactSummaryReasoningDesc": "コンテキスト要約だけに適用します。非対応のレベルは履歴を保持してエラーになります。失敗してもモデルや出力上限を自動変更しません。既定は現在の動作を維持します。"
   },
   "shortcuts": {
     "actionOpenSettings": "設定を開く",

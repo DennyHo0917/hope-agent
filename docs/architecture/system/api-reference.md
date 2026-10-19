@@ -1242,7 +1242,7 @@ Agent 执行准入采用两层 guard：Desktop / HTTP 的 transport admission �
 | Tauri Command | HTTP | 状态 |
 |---|---|---|
 | `get_compact_config` | `GET /api/config/compact` | ✅ |
-| `save_compact_config` | `PUT /api/config/compact` | ✅ |
+| `save_compact_config` | `PUT /api/config/compact` | ✅（`config.summaryReasoningEffort`: `null` 或 `none/minimal/low/medium/high/xhigh/max`；同一字段经 `get_settings/update_settings` 的 `compact` 中风险类别读写） |
 | `get_hooks_config` | `GET /api/config/hooks` | ✅ |
 | `save_hooks_config` | `PUT /api/config/hooks` | ✅ |
 | `get_session_title_config` | `GET /api/config/session-title` | ✅ |

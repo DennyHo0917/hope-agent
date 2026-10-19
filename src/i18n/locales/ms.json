@@ -8796,7 +8796,10 @@
       "save": "Simpan keutamaan",
       "saving": "Menyimpan…",
       "saved": "Disimpan"
-    }
+    },
+    "contextCompactSummaryReasoning": "Penaakulan khusus ringkasan",
+    "contextCompactSummaryReasoningDefault": "Kekalkan dasar semasa",
+    "contextCompactSummaryReasoningDesc": "Hanya mempengaruhi ringkasan konteks. Tahap yang tidak disokong memaparkan ralat dan mengekalkan sejarah. Kegagalan tidak menukar model atau menaikkan had output secara automatik. Lalai mengekalkan tingkah laku semasa."
   },
   "shortcuts": {
     "actionOpenSettings": "Buka tetapan",

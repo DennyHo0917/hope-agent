@@ -8796,7 +8796,10 @@
       "save": "保存偏好",
       "saving": "保存中…",
       "saved": "已保存"
-    }
+    },
+    "contextCompactSummaryReasoning": "摘要专用推理覆盖",
+    "contextCompactSummaryReasoningDefault": "保持当前摘要策略",
+    "contextCompactSummaryReasoningDesc": "仅用于上下文摘要。档位不受支持时会报错并保留历史；失败后不自动换模型或增加输出上限。默认保持现状。"
   },
   "shortcuts": {
     "actionOpenSettings": "打开设置",

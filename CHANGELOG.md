@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- 上下文摘要可单独选择推理档位，默认保持现状；不支持或失败时明确停止并保留历史，不自动改模型或扩输出预算。(#847)
+
 - **模型发现**：添加或编辑自定义服务商时可获取模型列表、勾选并补齐参数后新增，保留已有模型与当前选用配置。 (#844)
 
 ### Fixed

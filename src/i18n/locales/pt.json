@@ -8796,7 +8796,10 @@
       "save": "Salvar preferências",
       "saving": "Salvando…",
       "saved": "Salvo"
-    }
+    },
+    "contextCompactSummaryReasoning": "Raciocínio dos resumos",
+    "contextCompactSummaryReasoningDefault": "Manter a política atual",
+    "contextCompactSummaryReasoningDesc": "Afeta apenas os resumos de contexto. Níveis incompatíveis geram erro e preservam o histórico. Falhas não trocam o modelo nem aumentam o limite de saída. O padrão mantém o comportamento atual."
   },
   "shortcuts": {
     "actionOpenSettings": "Abrir configurações",
