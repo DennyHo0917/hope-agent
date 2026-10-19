@@ -1656,6 +1656,8 @@ Context / Cache 共用单 SQL `get_session_last_assistant_token_row`，避免渲
 
 ### Channels (IM)
 
+`channelId: "wecom"` 复用既有受鉴权双适配账号/校验接口；owner 凭据为 `{ botId, secret }`，模型 `ha-settings` 的 `channels` 仍只读且脱敏。插件列表声明仅 DM/Group 最终文本。健康接口读取连接缓存；校验同凭据健康账号不重复连接。无原消息锚点的 test-message/主动推送不支持；账号安全地址为 `single:<userid>` / `group:<chatid>`，详情见 [企业微信首版](../integration/im-channel.md#企业微信智能机器人文本首版)。
+
 | Tauri Command | HTTP | 状态 |
 |---|---|---|
 | `channel_list_plugins` | `GET /api/channel/plugins` | ✅ |

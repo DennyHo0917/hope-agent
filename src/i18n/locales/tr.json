@@ -368,7 +368,18 @@
     "lineAccessToken": "Kanal Erişim Jetonu",
     "lineChannelSecret": "Kanal Sırrı",
     "feishuDomainFeishu": "Feishu (Çin)",
-    "feishuDomainLark": "Lark (Uluslararası)"
+    "feishuDomainLark": "Lark (Uluslararası)",
+    "pluginName_wecom": "WeCom",
+    "pluginDesc_wecom": "AI botu için doğrudan özel ve grup metinleri",
+    "wecomBotId": "Bot ID",
+    "wecomSecret": "Bot Secret",
+    "wecomSetupHint": "Bot ID ve Secret bilgilerini WeCom’dan alın. Her bot için tek istemci kullanın. Doğrulama kısa süre abone olur; aynı kimlik bilgileriyle sağlıklı yerel bağlantı yeniden kullanılır. Aynı botun değiştirilmiş Secret değerini doğrulamadan önce çalışan hesabı durdurun.",
+    "wecomHostChanged": "Çalışma sunucusu değişti. Formu kapatıp yeniden açın. Yeniden denemeden önce bekleyen işlemi eski sunucuda doğrulayın.",
+    "wecomValidated": "Kimlik doğrulandı",
+    "wecomValidationFailed": "Kimlik reddedildi veya bağlantı kullanılamıyor. Bilgileri ve ağı kontrol edin.",
+    "wecomGroups": "Grup sohbeti kimlikleri",
+    "wecomGroupsHint": "Her satıra bir chatid (veya group:chatid). Yeni gruplar @ olmadan metne izin verir. Protokolde doğrulanmış etiketleme işareti olmadığından mevcut zorunlu etiketleme kuralları kapalı kalır.",
+    "wecomReplyLimit": "İlk sürüm: yalnızca son metin (20 KiB); proaktif gönderim, medya veya kart yok. Onay ve soruları uygulamada işleyin."
   },
   "chat": {
     "crossSession": {

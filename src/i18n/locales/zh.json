@@ -368,7 +368,18 @@
     "lineAccessToken": "Channel Access Token",
     "lineChannelSecret": "Channel Secret",
     "feishuDomainFeishu": "飞书（国内版）",
-    "feishuDomainLark": "Lark（国际版）"
+    "feishuDomainLark": "Lark（国际版）",
+    "pluginName_wecom": "企业微信",
+    "pluginDesc_wecom": "智能机器人直连单聊与群聊文本",
+    "wecomBotId": "Bot ID",
+    "wecomSecret": "Bot Secret",
+    "wecomSetupHint": "在企业微信取得 Bot ID 和 Secret。同一 Bot 仅使用一个客户端；校验会短暂订阅，原凭据的健康连接可复用。更改运行中 Bot 的 Secret 时，请先停止账户再校验。",
+    "wecomHostChanged": "运行主机已变化，请关闭并重新打开此表单。 如有在途操作，请先回原主机核验结果，再重试。",
+    "wecomValidated": "鉴权已确认",
+    "wecomValidationFailed": "鉴权被拒绝或连接不可用，请检查凭据与网络。",
+    "wecomGroups": "群聊 ID",
+    "wecomGroupsHint": "每行一个 chatid（或 group:chatid）。添加新群会允许无需 @ 的文本；原有仅 @ 策略保持拒绝，因为此协议没有已核验的提及标记。",
+    "wecomReplyLimit": "首版仅最终文本（20 KiB），不主动推送、发送媒体或卡片。审批与提问请在应用界面处理。"
   },
   "chat": {
     "crossSession": {

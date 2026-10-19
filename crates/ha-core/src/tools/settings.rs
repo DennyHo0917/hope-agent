@@ -270,7 +270,7 @@ fn side_effect_note(category: &str) -> Option<&'static str> {
              deployments. Has no effect on the Tauri desktop shell."
         ),
         "channels" => Some(
-            "Read-only via this tool. IM Channel accounts carry bot tokens (Telegram / WeChat / Feishu / QQ / Discord) and must be edited in Settings → Channels so the registry can drop and re-establish listeners under user supervision. The response from get_settings redacts credentials."
+            "Read-only via this tool. IM Channel accounts carry bot tokens (Telegram / WeChat / WeCom / Feishu / QQ / Discord) and must be edited in Settings → Channels so the registry can drop and re-establish listeners under user supervision. The response from get_settings redacts credentials."
         ),
         "smart_mode" => Some(
             "Affects every Smart-mode session: changing strategy / judgeModel / fallback alters which tool calls are auto-approved. JudgeModel-based strategies issue an extra side_query per approvable call (5s hard timeout, 60s TTL cache)."

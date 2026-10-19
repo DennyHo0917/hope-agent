@@ -368,7 +368,7 @@ All three modes share the same `ha-core` core. Config, sessions, and memories li
 </tr>
 <tr>
   <td><b>💬 IM channels</b></td>
-  <td><b>10+</b> · Telegram · Discord · Slack · Feishu · Google Chat · LINE · QQ Bot · Signal · iMessage · IRC · WeChat · WhatsApp</td>
+  <td><b>10+</b> · Telegram · Discord · Slack · Feishu · Google Chat · LINE · QQ Bot · Signal · iMessage · IRC · WeChat · WeCom (text) · WhatsApp</td>
 </tr>
 <tr>
   <td><b>🌐 UI languages</b></td>

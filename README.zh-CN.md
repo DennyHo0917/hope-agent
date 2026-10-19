@@ -368,7 +368,7 @@ pnpm tauri build       # 打生产包
 </tr>
 <tr>
   <td><b>💬 IM 渠道</b></td>
-  <td><b>10+ 个</b> · Telegram · Discord · Slack · 飞书 · Google Chat · LINE · QQ Bot · Signal · iMessage · IRC · WeChat · WhatsApp</td>
+  <td><b>10+ 个</b> · Telegram · Discord · Slack · 飞书 · Google Chat · LINE · QQ Bot · Signal · iMessage · IRC · WeChat · 企业微信（文本） · WhatsApp</td>
 </tr>
 <tr>
   <td><b>🌐 界面语言</b></td>

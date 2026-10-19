@@ -368,7 +368,18 @@
     "lineAccessToken": "채널 액세스 토큰",
     "lineChannelSecret": "채널 비밀",
     "feishuDomainFeishu": "Feishu(중국)",
-    "feishuDomainLark": "Lark(국제판)"
+    "feishuDomainLark": "Lark(국제판)",
+    "pluginName_wecom": "WeCom",
+    "pluginDesc_wecom": "AI 봇에 직접 연결하는 개인·그룹 텍스트",
+    "wecomBotId": "Bot ID",
+    "wecomSecret": "Bot Secret",
+    "wecomSetupHint": "WeCom에서 Bot ID와 Secret을 가져오세요. Bot당 클라이언트는 하나만 사용합니다. 검증은 잠시 구독하며 같은 자격 증명의 정상 연결은 재사용합니다. 실행 중인 Bot의 Secret을 변경해 검증하려면 먼저 계정을 중지하세요.",
+    "wecomHostChanged": "실행 호스트가 변경되었습니다. 양식을 다시 여세요. 진행 중인 작업은 원래 호스트에서 결과를 확인한 뒤 다시 시도하세요.",
+    "wecomValidated": "인증 확인됨",
+    "wecomValidationFailed": "인증이 거부되었거나 연결할 수 없습니다. 자격 증명과 네트워크를 확인하세요.",
+    "wecomGroups": "그룹 채팅 ID",
+    "wecomGroupsHint": "한 줄에 chatid(또는 group:chatid)를 입력하세요. 새 그룹은 @ 없는 텍스트를 허용합니다. 확인된 멘션 표시가 없으므로 기존 멘션 전용 정책은 계속 거부합니다.",
+    "wecomReplyLimit": "첫 버전은 최종 텍스트만 지원합니다(20 KiB). 먼저 보내기, 미디어, 카드는 지원하지 않습니다. 승인과 질문은 앱에서 처리하세요."
   },
   "chat": {
     "crossSession": {

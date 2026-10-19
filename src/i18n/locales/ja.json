@@ -368,7 +368,18 @@
     "lineAccessToken": "チャネルアクセストークン",
     "lineChannelSecret": "チャンネルシークレット",
     "feishuDomainFeishu": "Feishu（中国）",
-    "feishuDomainLark": "Lark（国際版）"
+    "feishuDomainLark": "Lark（国際版）",
+    "pluginName_wecom": "WeCom",
+    "pluginDesc_wecom": "AIボットに直接接続する個人・グループテキスト",
+    "wecomBotId": "Bot ID",
+    "wecomSecret": "Bot Secret",
+    "wecomSetupHint": "WeCom で Bot ID と Secret を取得します。Bot ごとにクライアントは1つです。検証時は短時間接続し、同じ認証情報の正常な接続は再利用します。稼働中の Bot の Secret を変更して検証する場合は、先にアカウントを停止してください。",
+    "wecomHostChanged": "接続先が変わりました。フォームを開き直してください。 処理中の操作は元のホストで結果を確認してから再試行してください。",
+    "wecomValidated": "認証を確認しました",
+    "wecomValidationFailed": "認証拒否または接続できません。認証情報とネットワークを確認してください。",
+    "wecomGroups": "グループチャットID",
+    "wecomGroupsHint": "1行にchatid（またはgroup:chatid）を入力。新しいグループは@なしのテキストを許可します。検証済みのメンション情報がないため、既存のメンション必須設定は拒否を維持します。",
+    "wecomReplyLimit": "初版は最終テキストのみ（20 KiB）。能動送信、メディア、カードは非対応です。承認・質問はアプリで処理してください。"
   },
   "chat": {
     "crossSession": {

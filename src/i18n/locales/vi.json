@@ -368,7 +368,18 @@
     "lineAccessToken": "Mã thông báo truy cập kênh",
     "lineChannelSecret": "Bí mật kênh",
     "feishuDomainFeishu": "Feishu (Trung Quốc)",
-    "feishuDomainLark": "Lark (Quốc tế)"
+    "feishuDomainLark": "Lark (Quốc tế)",
+    "pluginName_wecom": "WeCom",
+    "pluginDesc_wecom": "Văn bản trực tiếp của bot AI trong chat riêng và nhóm",
+    "wecomBotId": "Bot ID",
+    "wecomSecret": "Bot Secret",
+    "wecomSetupHint": "Lấy Bot ID và Secret từ WeCom. Mỗi bot chỉ dùng một ứng dụng khách. Xác minh đăng ký ngắn hạn và dùng lại kết nối cục bộ khỏe mạnh với cùng thông tin xác thực. Dừng tài khoản đang chạy trước khi xác minh Secret đã đổi của cùng bot.",
+    "wecomHostChanged": "Máy chủ đã thay đổi. Hãy đóng và mở lại biểu mẫu. Kiểm tra kết quả thao tác đang chờ trên máy chủ ban đầu trước khi thử lại.",
+    "wecomValidated": "Đã xác nhận xác thực",
+    "wecomValidationFailed": "Xác thực bị từ chối hoặc không kết nối được. Hãy kiểm tra thông tin và mạng.",
+    "wecomGroups": "ID nhóm chat",
+    "wecomGroupsHint": "Mỗi dòng một chatid (hoặc group:chatid). Nhóm mới cho phép văn bản không cần @. Chính sách chỉ khi được nhắc vẫn bị chặn vì giao thức chưa có cờ nhắc tên được xác minh.",
+    "wecomReplyLimit": "Bản đầu chỉ gửi văn bản cuối (20 KiB), không gửi chủ động, đa phương tiện hay thẻ. Xử lý phê duyệt và câu hỏi trong ứng dụng."
   },
   "chat": {
     "crossSession": {

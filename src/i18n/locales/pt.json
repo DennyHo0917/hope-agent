@@ -368,7 +368,18 @@
     "lineAccessToken": "Token de acesso ao canal",
     "lineChannelSecret": "Segredo do canal",
     "feishuDomainFeishu": "Feishu (China continental)",
-    "feishuDomainLark": "Lark (Internacional)"
+    "feishuDomainLark": "Lark (Internacional)",
+    "pluginName_wecom": "WeCom",
+    "pluginDesc_wecom": "Texto direto do bot de IA em conversas privadas e grupos",
+    "wecomBotId": "Bot ID",
+    "wecomSecret": "Bot Secret",
+    "wecomSetupHint": "Obtenha Bot ID e Secret no WeCom. Use um cliente por bot. A validação assina brevemente e reutiliza uma conexão local saudável com as mesmas credenciais. Pare a conta em execução antes de validar um Secret diferente do mesmo bot.",
+    "wecomHostChanged": "O servidor mudou. Feche e reabra o formulário. Confira operações pendentes no servidor original antes de tentar novamente.",
+    "wecomValidated": "Autenticação confirmada",
+    "wecomValidationFailed": "Autenticação rejeitada ou conexão indisponível. Confira credenciais e rede.",
+    "wecomGroups": "IDs de conversas em grupo",
+    "wecomGroupsHint": "Um chatid (ou group:chatid) por linha. Novos grupos permitem texto sem @. Políticas existentes que exigem menção continuam bloqueadas: não há marcador de menção verificado neste protocolo.",
+    "wecomReplyLimit": "Primeira versão: apenas texto final (20 KiB), sem envios proativos, mídia ou cartões. Trate aprovações e perguntas no aplicativo."
   },
   "chat": {
     "crossSession": {

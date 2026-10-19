@@ -368,7 +368,18 @@
     "lineAccessToken": "Token Akses Saluran",
     "lineChannelSecret": "Rahsia Saluran",
     "feishuDomainFeishu": "Feishu (Tanah Besar China)",
-    "feishuDomainLark": "Lark (Antarabangsa)"
+    "feishuDomainLark": "Lark (Antarabangsa)",
+    "pluginName_wecom": "WeCom",
+    "pluginDesc_wecom": "Teks bot AI terus untuk mesej peribadi dan kumpulan",
+    "wecomBotId": "Bot ID",
+    "wecomSecret": "Bot Secret",
+    "wecomSetupHint": "Dapatkan Bot ID dan Secret daripada WeCom. Gunakan satu klien bagi setiap bot. Pengesahan melanggan sebentar dan menggunakan semula sambungan setempat yang sihat dengan kelayakan sama. Hentikan akaun aktif sebelum mengesahkan Secret baharu bagi bot yang sama.",
+    "wecomHostChanged": "Hos telah berubah. Tutup dan buka semula borang. Sahkan operasi tertunda pada hos asal sebelum mencuba lagi.",
+    "wecomValidated": "Pengesahan disahkan",
+    "wecomValidationFailed": "Pengesahan ditolak atau sambungan tidak tersedia. Semak kelayakan dan rangkaian.",
+    "wecomGroups": "ID sembang kumpulan",
+    "wecomGroupsHint": "Satu chatid (atau group:chatid) setiap baris. Kumpulan baharu membenarkan teks tanpa @. Dasar sebutan wajib sedia ada kekal disekat kerana protokol tiada tanda sebutan yang disahkan.",
+    "wecomReplyLimit": "Versi pertama: teks akhir sahaja (20 KiB), tanpa penghantaran proaktif, media atau kad. Urus kelulusan dan soalan dalam aplikasi."
   },
   "chat": {
     "crossSession": {
