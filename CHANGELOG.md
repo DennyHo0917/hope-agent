@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.67.0] - 2026-10-20
+
 ### Added
 
 - **企业微信文本渠道**：可直连智能机器人，配置单聊/群聊 allowlist，断线后安全重连；首版按原消息回执发送最终文本，媒体等能力另行验收。 (#848)
