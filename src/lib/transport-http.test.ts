@@ -5,6 +5,17 @@ import { TRANSPORT_EVENT_RESYNC_REQUIRED } from "./transport"
 
 const fetchMock = vi.fn()
 
+test("HTTP directory browsing encodes the optional folder-only filter", async () => {
+  fetchMock.mockImplementation(async () => new Response(JSON.stringify({ entries: [] }), { status: 200 }))
+  const transport = new HttpTransport("http://localhost:8420", "synthetic-owner")
+  await transport.listServerDirectory("/tmp/with space", true)
+  const url = new URL(fetchMock.mock.calls[0][0])
+  expect(url.searchParams.get("path")).toBe("/tmp/with space")
+  expect(url.searchParams.get("directoriesOnly")).toBe("true")
+  await transport.listServerDirectory("/tmp")
+  expect(new URL(fetchMock.mock.calls[1][0]).searchParams.has("directoriesOnly")).toBe(false)
+})
+
 beforeEach(() => {
   fetchMock.mockReset()
   vi.stubGlobal("fetch", fetchMock)

@@ -171,7 +171,7 @@ Assign a default working directory to the current conversation. It will:
 - act as the actual working directory for `exec` (running commands) and as the resolution root for relative paths in `read` (reading files);
 - have its top-level file listing shared with the AI, so it can sense what you're working on.
 
-**How to set it**: click the "Working directory" button in the input toolbar. The desktop app opens the system directory picker; the web / server version opens a directory browser (pointing at a path on the server machine).
+**How to set it**: click the "Working directory" button in the input toolbar. On Linux desktop, the app's directory browser lists only folders and accepts a pasted absolute path; the project's "Add folder" entry uses the same approach. macOS / Windows desktop still use the system directory picker. The web / server version uses a directory browser pointing at paths on the machine running the agent.
 
 When no path is already selected, the directory browser starts in the home folder of the system account running Hope Agent; use the Home button to return there at any time. Hope Agent never elevates itself just to write a system directory, so choose a folder owned by that account if the current location is not writable. Creating a folder from the web / server UI also requires "Allow remote file writes" under Settings → Server; when it is off, the browser links directly to that setting instead of attempting a write that will fail.
 

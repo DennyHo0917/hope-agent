@@ -958,8 +958,8 @@
     "viewSystemPrompt": "Sistem İstemini Görüntüle",
     "weeksAgo": "{{count}} hafta önce",
     "workingDir": {
-      "browserDescription": "Yollar ajanın çalıştığı sunucuda çözümlenir.",
-      "browserTitle": "Sunucuda bir dizin seç",
+      "browserDescription": "Yollar ajanın çalıştığı makinede çözümlenir.",
+      "browserTitle": "Dizin seç",
       "change": "Dizini değiştir",
       "clear": "Dizini temizle",
       "current": "Çalışma dizini",
@@ -971,6 +971,7 @@
       "locationNotWritable": "Bu konuma yazılamıyor. Ana klasörünüzü veya Hope Agent'ı çalıştıran kullanıcıya ait başka bir klasörü seçin.",
       "loadError": "Dizin listelenemiyor",
       "loading": "Yükleniyor…",
+      "noSubdirectories": "Görüntülenecek alt dizin yok",
       "parent": "Bir üst klasöre çık",
       "pathPlaceholder": "Mutlak yol, örn. /srv/projects/app",
       "remoteWritesUnavailable": "Uzaktan yazma erişimi doğrulanamıyor",

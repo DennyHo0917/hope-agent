@@ -958,8 +958,8 @@
     "viewSystemPrompt": "Xem lời nhắc hệ thống",
     "weeksAgo": "{{count}} tuần trước",
     "workingDir": {
-      "browserDescription": "Đường dẫn được phân giải trên máy chủ đang chạy agent.",
-      "browserTitle": "Chọn thư mục trên máy chủ",
+      "browserDescription": "Đường dẫn được phân giải trên máy chạy agent.",
+      "browserTitle": "Chọn thư mục",
       "change": "Đổi thư mục",
       "clear": "Xoá thư mục",
       "current": "Thư mục làm việc",
@@ -971,6 +971,7 @@
       "locationNotWritable": "Không thể ghi vào vị trí này. Hãy chọn thư mục chính hoặc một thư mục khác thuộc sở hữu của người dùng đang chạy Hope Agent.",
       "loadError": "Không thể liệt kê thư mục",
       "loading": "Đang tải…",
+      "noSubdirectories": "Không có thư mục con để hiển thị",
       "parent": "Lên một cấp",
       "pathPlaceholder": "Đường dẫn tuyệt đối, ví dụ /srv/projects/app",
       "remoteWritesUnavailable": "Không thể xác minh quyền ghi từ xa",

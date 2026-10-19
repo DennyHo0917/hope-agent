@@ -958,8 +958,8 @@
     "viewSystemPrompt": "Ver instrução do sistema",
     "weeksAgo": "{{count}}sem atrás",
     "workingDir": {
-      "browserDescription": "Os caminhos são resolvidos na máquina onde o agente está rodando.",
-      "browserTitle": "Selecione um diretório no servidor",
+      "browserDescription": "Os caminhos são resolvidos na máquina em que o agente está em execução.",
+      "browserTitle": "Selecionar diretório",
       "change": "Trocar diretório",
       "clear": "Remover diretório",
       "current": "Diretório de trabalho",
@@ -971,6 +971,7 @@
       "locationNotWritable": "Não é possível gravar neste local. Escolha sua pasta pessoal ou outra pasta pertencente ao usuário que executa o Hope Agent.",
       "loadError": "Não é possível listar o diretório",
       "loading": "Carregando…",
+      "noSubdirectories": "Não há subdiretórios para mostrar",
       "parent": "Subir um nível",
       "pathPlaceholder": "Caminho absoluto, ex. /srv/projects/app",
       "remoteWritesUnavailable": "Não foi possível verificar o acesso de gravação remota",

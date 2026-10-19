@@ -971,6 +971,7 @@
       "locationNotWritable": "当前位置不可写。请选择主目录，或 Hope Agent 运行用户拥有的其他文件夹。",
       "loadError": "无法列出目录",
       "loading": "加载中……",
+      "noSubdirectories": "没有可显示的子目录",
       "parent": "返回上一级",
       "pathPlaceholder": "绝对路径，例如 /srv/projects/app",
       "remoteWritesUnavailable": "无法确认远程写入权限",

@@ -958,8 +958,8 @@
     "viewSystemPrompt": "檢視系統提示詞",
     "weeksAgo": "{{count}}周前",
     "workingDir": {
-      "browserDescription": "路徑將在執行 Agent 的伺服器上解析。",
-      "browserTitle": "選擇伺服器上的目錄",
+      "browserDescription": "路徑將在執行 Agent 的機器上解析。",
+      "browserTitle": "選擇目錄",
       "change": "更換目錄",
       "clear": "清除目錄",
       "current": "工作目錄",
@@ -971,6 +971,7 @@
       "locationNotWritable": "目前位置無法寫入。請選擇主目錄，或 Hope Agent 執行使用者擁有的其他資料夾。",
       "loadError": "無法列出目錄",
       "loading": "載入中……",
+      "noSubdirectories": "沒有可顯示的子目錄",
       "parent": "返回上一層",
       "pathPlaceholder": "絕對路徑，例如 /srv/projects/app",
       "remoteWritesUnavailable": "無法確認遠端寫入權限",

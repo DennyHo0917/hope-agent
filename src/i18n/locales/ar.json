@@ -958,8 +958,8 @@
     "viewSystemPrompt": "عرض موجه النظام",
     "weeksAgo": "منذ {{count}} أسبوع",
     "workingDir": {
-      "browserDescription": "يُفسَّر المسار على الجهاز الذي يعمل عليه الوكيل.",
-      "browserTitle": "اختر دليلاً على الخادم",
+      "browserDescription": "تُفسَّر المسارات على الجهاز الذي يعمل عليه الوكيل.",
+      "browserTitle": "اختر مجلدًا",
       "change": "تغيير الدليل",
       "clear": "مسح الدليل",
       "current": "دليل العمل",
@@ -971,6 +971,7 @@
       "locationNotWritable": "لا يمكن الكتابة في هذا الموقع. اختر مجلدك الرئيسي أو مجلدًا آخر يملكه المستخدم الذي يشغّل Hope Agent.",
       "loadError": "تعذّر عرض الدليل",
       "loading": "جارٍ التحميل…",
+      "noSubdirectories": "لا توجد مجلدات فرعية لعرضها",
       "parent": "مستوى أعلى",
       "pathPlaceholder": "مسار مطلق، مثلاً /srv/projects/app",
       "remoteWritesUnavailable": "تعذّر التحقق من إذن الكتابة عن بُعد",

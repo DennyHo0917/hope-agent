@@ -1850,7 +1850,7 @@ Team 生命周期 HTTP 响应保持原有 `status` 字段并追加可观测结�
 | `fs_list_dir` | `GET /api/filesystem/list-dir?path=<abs>` | ✅ |
 | `fs_search_files` | `GET /api/filesystem/search-files?root=<abs>&q=<query>&limit=50` | ✅；path-aware fuzzy（精确 / 前缀 / 多 token / 路径分段 / 驼峰词感知，subsequence 兜底） |
 
-`list-dir` 列出服务器本地目录单层条目，供 HTTP 模式目录浏览器驱动 `set_session_working_dir`，以及聊天输入框 `@` mention popper 的"路径模式"。参数要求绝对路径，后端会 canonicalize 并校验 `is_dir`；无 `path` 参数时返回平台默认根（Unix: `/`，Windows: `USERPROFILE`）。响应 `{ path, parent, entries: [{ name, isDir, isSymlink, size, modifiedMs }], truncated }`，按目录优先 + 名字升序排序，单次最多 5000 条（超出 `truncated=true`）。
+`list-dir` 列出服务器本地目录单层条目，供 HTTP 模式目录浏览器驱动 `set_session_working_dir`，以及聊天输入框 `@` mention popper 的"路径模式"。参数要求绝对路径，后端会 canonicalize 并校验 `is_dir`；无 `path` 参数时返回平台默认根（Unix: `/`，Windows: `USERPROFILE`）。可选 `directoriesOnly=true`（Tauri 同名参数）先过滤普通文件，再对目录应用 5000 条上限；省略或 false 保持完整条目语义。响应 `{ path, parent, entries: [{ name, isDir, isSymlink, size, modifiedMs }], truncated }`，按目录优先 + 名字升序排序，单次最多 5000 条（超出 `truncated=true`）。
 
 `search-files` 在 `root` 下做 fuzzy 搜索，供聊天输入框 `@` mention popper 的"搜索模式"使用——用户输入 `@chat` 这种不含 `/` 的非空 token 时调用。后端用 `ignore::WalkBuilder` 遍历，遵守 `.gitignore` / `.git/info/exclude` / `.ignore` / 隐藏文件规则；`q` 按子序列匹配 + 评分（name 命中 +1000、path 命中 +200，靠近开头 + 跨度紧凑得分高）。响应 `{ root, matches: [{ name, path, relPath, isDir, score }], truncated }`，按 score desc + path asc 排序；`limit` 默认 50，最大 200；单次最多遍历 50000 条文件，超出 `truncated=true`。
 

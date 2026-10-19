@@ -958,8 +958,8 @@
     "viewSystemPrompt": "Lihat Gesaan Sistem",
     "weeksAgo": "{{count}} minggu lalu",
     "workingDir": {
-      "browserDescription": "Laluan diselesaikan pada mesin pelayan tempat ejen berjalan.",
-      "browserTitle": "Pilih direktori pada pelayan",
+      "browserDescription": "Laluan diselesaikan pada mesin tempat ejen berjalan.",
+      "browserTitle": "Pilih direktori",
       "change": "Tukar direktori",
       "clear": "Kosongkan direktori",
       "current": "Direktori kerja",
@@ -971,6 +971,7 @@
       "locationNotWritable": "Lokasi ini tidak boleh ditulis. Pilih folder utama anda atau folder lain yang dimiliki oleh pengguna yang menjalankan Hope Agent.",
       "loadError": "Tidak dapat menyenaraikan direktori",
       "loading": "Memuatkan…",
+      "noSubdirectories": "Tiada subdirektori untuk dipaparkan",
       "parent": "Naik satu tahap",
       "pathPlaceholder": "Laluan mutlak, mis. /srv/projects/app",
       "remoteWritesUnavailable": "Tidak dapat mengesahkan akses tulis jauh",

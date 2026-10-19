@@ -971,6 +971,7 @@
       "locationNotWritable": "This location is not writable. Choose your home folder or another folder owned by the Hope Agent user.",
       "loadError": "Cannot list directory",
       "loading": "Loading…",
+      "noSubdirectories": "No subdirectories to display",
       "parent": "Up one level",
       "pathPlaceholder": "Absolute path, e.g. /srv/projects/app",
       "remoteWritesUnavailable": "Cannot verify remote write access",
