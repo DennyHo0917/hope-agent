@@ -11830,7 +11830,24 @@
     "exportReviewPassed": "Semakan eksport diluluskan",
     "exportReviewBlocked": "Semakan eksport masih mempunyai penyekat",
     "guardStatus": "Pengawal",
-    "defaultName": "Artifak"
+    "defaultName": "Artifak",
+    "registration": {
+      "create": "Daftar fail sebagai artifak baharu",
+      "update": "Kemas kini daripada fail",
+      "description": "Pilih fail .html, .htm, .md atau artifact.json analisis untuk disalin ke petikan terurus. Fail asal dikekalkan. Nama sama tidak menulis ganti; kemas kini mengekalkan identiti dan sejarah yang dipilih.",
+      "path": "Laluan mutlak fail pada komputer Agent",
+      "source": "Sumber fail",
+      "uploadSource": "Pilih fail untuk dimuat naik",
+      "pathSource": "Laluan hos Agent",
+      "file": "Pilih fail untuk didaftarkan",
+      "pathHint": "Import laluan terhad kepada direktori kerja proses Agent atau direktori utama pengguna. Dapatkan fail di luar skop ini dahulu, kemudian pilih untuk dimuat naik.",
+      "failed": "Hasil tidak dapat disahkan. Muat semula pustaka sebelum menghantar semula; jika belum didaftarkan, semak format, akses laluan dan versi semasa.",
+      "hostChanged": "Komputer Agent telah berubah. Tutup dialog ini dan semak hasil pada komputer asal.",
+      "firstVersion": "Versi pertama",
+      "updatedVersion": "Dikemas kini",
+      "createdAt": "Dicipta",
+      "updatedAt": "Dikemas kini"
+    }
   },
   "backgroundJobs": {
     "panelTitle": "Tugas Latar Belakang",

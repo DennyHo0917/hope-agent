@@ -11830,7 +11830,24 @@
     "exportReviewPassed": "Export review passed",
     "exportReviewBlocked": "Export review still has blockers",
     "guardStatus": "Guard",
-    "defaultName": "Artifact"
+    "defaultName": "Artifact",
+    "registration": {
+      "create": "Register file as new Artifact",
+      "update": "Update from file",
+      "description": "Select an .html, .htm, .md or analysis artifact.json file to copy into a managed snapshot. The source is preserved. New registrations never overwrite by name; updates keep the selected identity and history.",
+      "path": "Absolute file path on the Agent’s computer",
+      "source": "File source",
+      "uploadSource": "Select file to upload",
+      "pathSource": "Agent host path",
+      "file": "Select a file to register",
+      "pathHint": "Path imports are limited to the Agent process working directory or user home. For files outside these roots, obtain the file and select it for upload.",
+      "failed": "The result could not be confirmed. Refresh the library before submitting again; check the file format, path access and current version if it was not registered.",
+      "hostChanged": "The Agent’s computer changed. Close this dialog and check the result on the original computer.",
+      "firstVersion": "First version",
+      "updatedVersion": "Updated",
+      "createdAt": "Created",
+      "updatedAt": "Updated"
+    }
   },
   "backgroundJobs": {
     "panelTitle": "Background Tasks",

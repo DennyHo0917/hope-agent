@@ -11830,7 +11830,24 @@
     "exportReviewPassed": "Đã thông qua đánh giá xuất khẩu",
     "exportReviewBlocked": "Đánh giá xuất khẩu vẫn có trình chặn",
     "guardStatus": "bảo vệ",
-    "defaultName": "Sản phẩm"
+    "defaultName": "Sản phẩm",
+    "registration": {
+      "create": "Đăng ký tệp thành sản phẩm mới",
+      "update": "Cập nhật từ tệp",
+      "description": "Chọn tệp .html, .htm, .md hoặc artifact.json phân tích để sao chép thành bản chụp được quản lý. Giữ nguyên tệp gốc. Không ghi đè theo tên; cập nhật giữ định danh và lịch sử đã chọn.",
+      "path": "Đường dẫn tuyệt đối của tệp trên máy Agent",
+      "source": "Nguồn tệp",
+      "uploadSource": "Chọn tệp để tải lên",
+      "pathSource": "Đường dẫn máy Agent",
+      "file": "Chọn tệp để đăng ký",
+      "pathHint": "Nhập theo đường dẫn chỉ trong thư mục làm việc của tiến trình Agent hoặc thư mục chính của người dùng. Với tệp ngoài phạm vi này, hãy lấy tệp rồi chọn tải lên.",
+      "failed": "Chưa thể xác nhận kết quả. Làm mới thư viện trước khi gửi lại; nếu chưa đăng ký, kiểm tra định dạng, quyền truy cập và phiên bản hiện tại.",
+      "hostChanged": "Máy Agent đã thay đổi. Đóng hộp thoại và kiểm tra kết quả trên máy ban đầu.",
+      "firstVersion": "Bản đầu tiên",
+      "updatedVersion": "Đã cập nhật",
+      "createdAt": "Đã tạo",
+      "updatedAt": "Đã cập nhật"
+    }
   },
   "backgroundJobs": {
     "panelTitle": "Tác vụ nền",

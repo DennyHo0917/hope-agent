@@ -117,6 +117,8 @@ In file previews (code / text, Markdown, rich Office previews), managed HTML / A
 
 ---
 
+For an `.html`, `.htm`, `.md` or analysis `artifact.json` deliverable, open **Artifacts** in the sidebar and choose **Register file as new Artifact**. Select a file to upload; confirming registration copies it into a versioned, managed snapshot. Alternatively, choose **Agent host path** and enter an absolute path within the Agent process working directory or user home. Obtain files from other session directories first, then select them for upload. In a remote UI, upload reads the file you select on the client; it does not treat a client path as a server path. The source is preserved, and script intermediates are not registered automatically. Leaving Artifacts closes registration and aborts an unfinished upload. An import already sent is not rolled back automatically; refresh and check its result when returning. Matching names are not merged: select an existing Artifact and choose **Update from file** to iterate it. If its version changed, refresh and review it first; history is never overwritten. **First version / Updated** labels and creation/update dates describe the durable lifecycle, rather than files changed in the current turn.
+
 ## 3.5 Managing and searching sessions
 
 - **New conversation**: "New" in the sidebar, or `/new`. When you start a new conversation inside a project, it stays as a draft first and is only saved once you send the first message.
