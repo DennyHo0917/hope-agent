@@ -85,6 +85,7 @@ node scripts/check-agent-kernel-boundaries.mjs
 
   echo "[pre-push] verify-tauri-version-sync (tauri crate ↔ @tauri-apps/api)"
   node scripts/verify-tauri-version-sync.mjs
+  node --test scripts/__tests__/tauri-version-sync.test.mjs
 
 echo "[pre-push] vitest run"
 pnpm test
