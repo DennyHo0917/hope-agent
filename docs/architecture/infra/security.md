@@ -285,6 +285,8 @@ pub fn status() -> DangerousModeStatus;
 
 ## 四、凭据与日志红线
 
+随机数调用使用工作区 `rand 0.10`：字节填充导入 `rand::Rng`，PKCE 的 `random()` 方法导入 `rand::RngExt`，均保留 `rand::rng()`。迁移只调整 trait 入口；OAuth 校验码、Server Owner Token、票据、加密盐与 nonce 的长度、编码及存储格式保持原契约，不持久化或复制 RNG 状态。兼容依据见 [rand 0.10 迁移说明](https://rust-random.github.io/book/update-0.10.html)。
+
 这几条不属于某个具体函数，而是所有子系统都要守的跨切面约束：
 
 - **凭据绝不进日志**。任何日志路径（`app_*!` / `tracing` / panic backtrace / 请求响应体落盘）在写出前都必须经 [`logging::redact_sensitive`](../../../crates/ha-base/src/logging/file_ops.rs) 脱敏；错误/正文预览还会额外做长度截断，避免把大段响应体连同其中的密钥一起写进磁盘。API Key / OAuth Token 绝不能出现在任何日志中——一旦模型能读到含密钥的历史，日志就成了泄漏通道。

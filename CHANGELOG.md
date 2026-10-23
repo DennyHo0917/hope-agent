@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **随机数依赖兼容**：适配 rand 0.10，恢复 OAuth 校验码、访问票据与加密存储随机数生成路径的构建兼容。 (#826)
+
 ## [0.68.0] - 2026-10-20
 
 ### Added
