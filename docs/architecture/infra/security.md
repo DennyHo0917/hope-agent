@@ -50,6 +50,10 @@ flowchart TB
 
 **唯一的例外是 LLM Provider 出站**：`ProviderConfig.allow_private_network` 只是一个 UI 标记，后端不做拦截。原因很实际——用户的本地 Ollama / vLLM 自部署常年住在 `192.168.*` / `10.*`，如果对 Provider 也套 SSRF 策略，最常见的本地部署反而被误伤。这条例外在下文"调用方对照"里会再点明。
 
+### 桌面深链依赖的临时上游补丁
+
+工作区将 `tauri-plugin-deep-link 2.6.2` 固定到官方签名提交 `463977675da7bbb257dee59669b5e122c8d681db`，仅补齐 Linux INI 解析选项的新增字段，保留原有引号与转义处理设置，以及该版本的 XDG 注册归属与错误上报修复。`rust-ini 0.21.3` 及所有已锁定包的版本保持不变，Cargo 重新解析已有跨平台依赖边；不回退到已撤回的 INI 版本。来源由 `Cargo.toml` 与 `Cargo.lock` 的完整提交摘要固定；有兼容的正式 crate 发布后再移除补丁，并以真实桌面构建与 Linux 相关验证验收。普通不含 Tauri 壳的 Rust CI 不构成此路径的编译证明。
+
 ---
 
 ## 一、SSRF 出站防护
