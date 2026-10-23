@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **OpenViking 同步完整性**：远端记忆列表被截断或无法证明完整时明确停止，避免仅同步部分内容却显示成功，并保留已有记忆与同步进度。 (#855)
+- **构建安全维护**：CI 固定 Node 24.22.1 安全补丁，避免浮动版本继续使用旧缓存。 (#855)
+
 ## [0.69.0] - 2026-10-23
 
 ### Added
