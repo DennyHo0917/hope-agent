@@ -1,5 +1,11 @@
 # 行动卡统一迭代台账
 
+## 2026-10-25：依赖主责接续 emSign 信任链补丁
+
+`hope-agent-3` 精确 prepare 基线 `fba5eca8be4fc79c9c9a330e4757c671752164b8`，运行 `20261025T032835-3bdd5c12`，已取得自有 writer lease。完整分页为 22 个 open PR，没有依赖机器人 PR；本轮唯一维护包 [PR #860](https://github.com/shiwenwen/hope-agent/pull/860) 沿既有 `rustsec:CVE-2026-111943`，成对修补 `rustls-webpki` 0.103.16 与 `webpki-root-certs` 1.0.10，调用条件和平台边界见[安全合同](../infra/security.md#2026-10-25-emsign-信任链安全补丁)。普通 hooks、精确 head CI、审查线程、保护合入与远端读回均为交付条件，终态以同一 run 的回执为准。
+
+#853 的 Vite/Vitest/DOMPurify 安全包已由原主责保护交付，保留基线 React Hooks 规则；不重复实施。ZIP 权限、zbus 上游兼容、Zod/Undici 开发依赖补丁继续原卡，未因本轮证书补丁完成。`embedding:A2` 的 xAI 质量别名在 11-02 改变解析与默认质量，距本轮 8 天；10-25 目标保留记录，本轮因现有 P0 证书事项顺延至 10-26 的下一个单包，仍在每日实施队列，不等双周报。替代需显式 `grok-imagine-image-2.0` 与 `quality` 的 schema/离线 payload 合同；不得静默改写已存配置或调用付费模型，回退仅评估官方明确不受影响的 1.0 型号。
+
 ## 2026-10-23：Node安全补丁与OpenViking列表完整性
 
 本轮交付见 [PR #855](https://github.com/shiwenwen/hope-agent/pull/855)。正常首轮pre-push通过Rust5453项（7既有忽略）、前端308文件/1802项；最终提交仍须独立复审与8项required CI。
