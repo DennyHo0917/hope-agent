@@ -257,7 +257,7 @@ async fn generate_impl(
     };
     let url = format!("{base}{path}");
 
-    let client = ha_core::provider::apply_proxy(
+    let client = ha_core::provider::apply_model_proxy(
         Client::builder()
             .connect_timeout(std::time::Duration::from_secs(30))
             .timeout(std::time::Duration::from_secs(params.timeout_secs)),

@@ -578,19 +578,7 @@ pub fn media_provider_templates() -> Vec<MediaProviderTemplate> {
             requires_api_key: true,
             supports_voice_listing: true,
             models: vec![
-                img("gpt-image-1", "GPT Image 1", openai_image_caps(), &[]),
                 img("gpt-image-2", "GPT Image 2", openai_image_caps(), &[]),
-                img(
-                    "dall-e-3",
-                    "DALL·E 3",
-                    ImageModelCaps {
-                        // dall-e-3 has no edits endpoint.
-                        supports_mask: false,
-                        max_n: 1,
-                        ..openai_image_caps()
-                    },
-                    &[],
-                ),
                 aud("gpt-4o-mini-tts", "GPT-4o mini TTS", speech_caps()),
                 aud("tts-1", "TTS-1", speech_caps()),
                 aud("tts-1-hd", "TTS-1 HD", speech_caps()),
@@ -605,40 +593,16 @@ pub fn media_provider_templates() -> Vec<MediaProviderTemplate> {
             supports_voice_listing: false,
             models: vec![
                 img(
-                    "gemini-3.1-flash-image-preview",
-                    "Gemini 3.1 Flash Image Preview",
+                    "gemini-3.1-flash-image",
+                    "Gemini 3.1 Flash Image",
                     google_image_caps(),
                     &[("thinking_level", "MINIMAL")],
                 ),
                 img(
-                    "gemini-3-pro-image-preview",
-                    "Gemini 3 Pro Image Preview",
+                    "gemini-3-pro-image",
+                    "Gemini 3 Pro Image",
                     google_image_caps(),
                     &[("thinking_level", "MINIMAL")],
-                ),
-                img(
-                    "gemini-2.5-flash-image",
-                    "Gemini 2.5 Flash Image",
-                    google_image_caps(),
-                    &[],
-                ),
-                img(
-                    "imagen-4.0-generate-001",
-                    "Imagen 4",
-                    google_image_caps(),
-                    &[],
-                ),
-                img(
-                    "imagen-4.0-ultra-generate-001",
-                    "Imagen 4 Ultra",
-                    google_image_caps(),
-                    &[],
-                ),
-                img(
-                    "imagen-4.0-fast-generate-001",
-                    "Imagen 4 Fast",
-                    google_image_caps(),
-                    &[],
                 ),
             ],
         },
@@ -1383,17 +1347,31 @@ mod tests {
     }
 
     #[test]
-    fn openai_mask_support_is_model_specific() {
+    fn direct_image_templates_exclude_retired_models() {
         let templates = media_provider_templates();
         let openai = templates.iter().find(|t| t.key == "openai").unwrap();
-        let gpt1 = openai
+        let gpt2 = openai
             .models
             .iter()
-            .find(|m| m.id == "gpt-image-1")
+            .find(|m| m.id == "gpt-image-2")
             .unwrap();
-        assert!(gpt1.image.as_ref().unwrap().supports_mask);
-        let dalle3 = openai.models.iter().find(|m| m.id == "dall-e-3").unwrap();
-        assert!(!dalle3.image.as_ref().unwrap().supports_mask);
+        assert!(gpt2.image.as_ref().unwrap().supports_mask);
+        assert!(!openai.models.iter().any(|m| m.id == "gpt-image-1"));
+        assert!(!openai.models.iter().any(|m| m.id == "dall-e-3"));
+        let google = templates.iter().find(|t| t.key == "google").unwrap();
+        for retired in [
+            "gemini-3.1-flash-image-preview",
+            "gemini-3-pro-image-preview",
+            "gemini-2.5-flash-image",
+            "imagen-4.0-generate-001",
+            "imagen-4.0-ultra-generate-001",
+            "imagen-4.0-fast-generate-001",
+        ] {
+            assert!(!google.models.iter().any(|m| m.id == retired), "{retired}");
+        }
+        for current in ["gemini-3.1-flash-image", "gemini-3-pro-image"] {
+            assert!(google.models.iter().any(|m| m.id == current));
+        }
     }
 
     /// Vendors whose speech models legitimately declare `needs_voice=false`:

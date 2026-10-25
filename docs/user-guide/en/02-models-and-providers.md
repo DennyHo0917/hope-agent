@@ -26,6 +26,18 @@ This chapter explains how to get the AI working with a model: connecting a model
 
 Hope Agent connects to each vendor's large models through a "**provider + API key**" pairing. It ships with **about 50 provider templates and several hundred preset models**, and also supports any custom OpenAI-compatible or Anthropic endpoint. Templates change as releases add or retire options, so the list shown by Add Provider is authoritative.
 
+New Fireworks templates exclude retired GLM 5.2 Fast and Kimi K2.6 Turbo/Fast. Existing connections and dedicated deployments keep their settings; if you use a retired serverless model, choose a replacement according to the provider’s current availability.
+
+New MiniMax templates recommend M3 and exclude M2.5, M2.7, and M2.7 Highspeed. The vendor closed these models to new users on October 19, 2026. Existing pay-as-you-go users retain access until retirement on November 18; M Plan / Token Plan requests will instead be routed by the vendor to M3.1 Flash Preview starting October 19. Hope preserves saved model IDs, endpoints, prices, and fallback choices. Check your plan before migrating; the plan-restricted Preview is excluded from the general template.
+
+Templates and model autocomplete now include **Claude Haiku 5.5**, **Grok 4.7**, **MiniMax M3**, and Fireworks **DeepSeek V4.1 Flash, GLM 5.3, and GLM 5.3 Flash**. Haiku 5.5 supports a 1M context and 128K output, uses adaptive thinking, and allows thinking to be disabled; temperature is omitted. Grok 4.7 uses the OpenAI Chat compatible API, accepts images, supports a 500K context, a 64K output preset, and reasoning up to `xhigh`; the vendor does not allow thinking to be disabled. The three Fireworks presets use Chat with a conservative 131,072-token output cap from the official examples; check dedicated deployment limits separately.
+
+Haiku 5.5 base input/output rates are $0.10/$0.50 per million tokens, rising to $0.50/$2.50 above 100,000 input tokens. Grok 4.7 base rates are $2/$6, rising to $4/$12 above 200K input. Templates and the dashboard store a single base rate and do not automatically calculate these tiers, caching, or regional premiums; they are not bills. New xAI templates exclude five explicitly retired IDs. Existing settings remain editable, but retired IDs may be billed at replacement-model rates, so check vendor pricing before migrating.
+
+MiniMax M3 uses the existing Anthropic compatible connection, accepts images, supports a 1M context and a thinking toggle, and defaults to the officially recommended 131,072 output tokens. Base input/output rates are $0.30/$1.20 per million tokens, rising to $0.60/$2.40 above 512K input. M3 has a thinking toggle rather than adjustable thinking depth. Video uploads and M3.1 Flash Preview are not preset capabilities. New templates exclude VL-01, which this compatible API does not list as supported; existing settings remain editable.
+
+New direct Google templates exclude Gemini 3.7 / 3.5 Flash, which redirect to newer models, and Gemini 2.5 models, which are restricted to users who previously used them. Choose stable Gemini 3.8 Flash or 3.6 Flash. Existing connections and other gateway candidates remain available.
+
 **Where**: Settings → **Model Configuration** → **Providers** tab → click "**Add Provider**" in the top right.
 
 The first page of the add wizard offers five paths:
@@ -44,6 +56,8 @@ After you add a provider, the system automatically sets its first model as the c
 
 > **DeepSeek vision model**: New direct DeepSeek providers can select **DeepSeek V4.1 Flash**. It supports image input, a million-token context window, and reasoning. Existing DeepSeek configurations are not rewritten automatically; add model ID `deepseek-flash` manually when needed, or create the connection again.
 
+Connection tests and model requests do not automatically follow endpoint redirects. If a test reports a redirect, confirm the final API address with your provider and update the Base URL. Hope does not forward your key or request content to the redirect target or report that response as a successful connection.
+
 ### Custom provider
 
 If your provider has no ready-made template, choose "Custom provider" and follow the three-step wizard:
@@ -52,9 +66,15 @@ If your provider has no ready-made template, choose "Custom provider" and follow
 2. Fill in the provider name, **Base URL**, API key (optional), thinking style, and billing currency (USD / CNY); you can test the connection.
 3. Add models: type a model name, ID, or provider name into the model ID field to search models from all built-in templates. Selecting a suggestion fills in the ID, display name, input types, context window, max output, and reasoning capability; you can still edit these manually. Use the up/down arrows to select, Enter to confirm, and Esc to close suggestions.
 
-Autocomplete works when adding or editing models without replacing your relay's address, API type, key, or thinking parameter format. If the catalog has pricing in the same currency that differs from your current pricing, a dialog shows the source and unit prices and lets you keep your prices or use the catalog prices; prices in another currency never directly overwrite yours. Model IDs are not autocorrected or automatically capitalized by the system.
+Autocomplete works when adding or editing models without replacing your relay's address, API type, key, or thinking parameter format. If the catalog has pricing in the same currency that differs from your current pricing, a dialog shows the source and unit prices and lets you keep your prices or use the catalog prices; prices in another currency never directly overwrite yours. Model IDs are not autocorrected or automatically capitalized by the system. When you enter a full ID, a candidate with exactly matching case appears first.
 
 > Suggestions come from built-in templates, not an online probe of models available through your relay. The same model ID can have different context limits at different providers. Check the suggestion's source and use the ID, capabilities, and actual pricing supported by your provider.
+
+In the wizard’s model step or the provider edit page, choose **Discover models** to read the current endpoint’s online model list. Select the entries to add, enter context and maximum output token limits, and confirm that they support text chat and tool calls. Nothing is selected automatically. Existing models are neither duplicated nor overwritten. The additions remain a draft until you save the provider; new entries use text input with reasoning off, and you can edit capabilities and pricing before saving.
+
+For a local or private-network Base URL, explicitly enable **Allow private network** in the wizard’s connection step before discovery. It defaults to off and is saved with the provider; discovery never enables private access automatically.
+
+Discovery only reads the model list and sends no test conversation. A listed model is not proof of chat compatibility. If the endpoint is unsupported, access is denied, or network policy blocks the request, you can still add models manually. An incomplete list is marked. This version reads only IDs and display names, without inferring purpose, token limits, or pricing from names. ChatGPT OAuth providers keep their existing catalog instead of using this entry point.
 
 ### Common provider settings
 
@@ -104,9 +124,15 @@ When automatically switching models across protocols (for example, when the prim
 
 ---
 
+Gateway presets also cover current stable models: OpenRouter adds the four GPT-6 models, Claude Opus / Sonnet / Haiku 5.5, Grok 4.7, GLM 5.3 / Flash, DeepSeek V4.1 Flash, MiniMax M3, and Kimi K3. Prices estimate the public catalog's base route rates; routing, caching, and long-input tiers may change the bill. A model's file or video capability does not mean Hope supports those inputs.
+
+Together adds GLM 5.3 / Flash, Kimi K3, MiniMax M3, and DeepSeek V4.1 Flash with channel-specific context and prices and a conservative **16K output preset**, not a vendor hard limit. Only text input is declared. These models use default reasoning without the GPT-OSS-only `reasoning_effort`; Together's reasoning toggle is not integrated.
+
+MiniMax M3 keeps its default thinking off when effort is unset. Selecting an effort enables adaptive thinking; explicitly choosing off sends the disabled setting.
+
 ## 2.4 Sign in with a ChatGPT / Codex account
 
-Don't want to enter an API key by hand? You can sign in directly with a ChatGPT account, use the GPT-5.x series as your primary chat model, and consume your subscription quota.
+Don't want to enter an API key by hand? You can sign in directly with a ChatGPT account, use GPT models as your primary chat model, and consume your subscription quota.
 
 **Sign in**: Settings → Add Provider → the "**Sign in with ChatGPT (Codex)**" primary button at the top of the first page opens the system browser to complete authorization (finish within 5 minutes). Once signed in, the configuration is saved automatically and a green "Configured" badge appears.
 
@@ -122,6 +148,9 @@ hope-agent auth codex logout         # Sign out (deletes the Codex provider and 
 **Re-sign in**: the Codex provider card's "⋮" menu has "Re-sign in" (rather than "Delete", to avoid accidental removal); when the token expires the interface also guides you to sign in again.
 
 - The specific model used after signing in can be switched in Settings; the default is the tier available across all account levels.
+- The built-in Codex catalog includes `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-sol`, and `gpt-6-luna`. Upgrades backfill missing entries while preserving selected models, custom parameters, and disabled providers. Access still depends on your ChatGPT plan, workspace settings, and rollout.
+- Codex GPT-6 presets use the official bundled catalog's **272K** context, separately from the OpenAI API's **1.05M**. The existing **16K output reservation** is not a server output limit. GPT-6 reasoning ranges from `low` to `max`; `minimal` and “off” map to `low` on this endpoint, while “off” still hides reasoning output. An unset effort preserves the model default. `Ultra` is Codex task delegation; Hope does not send it as a reasoning parameter.
+- New defaults omit retired GPT-5.4 and GPT-5.3-Codex-Spark, plus GPT-5.5 retiring from Codex on 2026-10-14. Saved configurations remain; GPT-5.5 API presets are unaffected by this Codex retirement.
 - Codex credentials are stored only on this machine (`~/.hope-agent/credentials/auth.json`) and are never written to logs.
 - Codex sign-in and the account sign-in for [11 · MCP: connecting external tools](11-connect-and-extend.md#111-mcp-connecting-external-tools) are two completely independent mechanisms that do not affect each other.
 
@@ -133,6 +162,8 @@ hope-agent auth codex logout         # Sign out (deletes the Codex provider and 
 
 - **Default model**: a two-level dropdown (pick the provider first, then the model); this is the model all new sessions use by default.
 - **Fallback chain (Fallback)**: you can add multiple and drag to reorder; when the primary model call fails, the system automatically tries the next one in this order. See [2.7](#27-automatic-failover).
+
+When a provider or model list is long, both menu levels scroll within the popup. Use the mouse wheel or keyboard navigation to reach the final entries. The Agent's plan-mode model selector supports the same interaction.
 
 **A few key points**:
 
@@ -151,7 +182,7 @@ Two knobs that affect answer style, both layered as "**session > Agent > global*
 - **Thinking effort (Think)**: offers up to seven levels, `none / minimal / low / medium / high / xhigh / max`, with a global default of `medium`. Requests map the preference to supported levels for the model, protocol, and endpoint. Use `/thinking high` in a conversation to adjust it quickly.
 - **Temperature**: controls the randomness of answers, a slider from 0.00–2.00, defaulting to 1.00. A "Reset" button returns it to the inherited state.
 
-For direct **GPT-6 Astra** conversations with tools, choose OpenAI Responses. Astra preserves `max`, maps `none` / `minimal` to `low`, and omits temperature. New presets affect new connections only; add the model or adjust the protocol yourself for existing providers.
+For direct **GPT-6** conversations with tools, choose OpenAI Responses. All four models preserve `max`. Turning thinking off maps to `low` for Astra / GPT-6.1 Sol and to `none` for GPT-6 Sol / Luna; `minimal` maps to `low` for all four. An unset effort preserves the model default; temperature is omitted while reasoning is enabled. See [2.4](#24-sign-in-with-a-chatgpt--codex-account) for Codex login differences. New presets affect new connections only; add the model or adjust the protocol yourself for existing providers.
 
 **Claude Fable 5.1** stores original thinking signatures with the conversation. If dynamic prefixes, compaction, or a model switch make some historical thinking unusable, the reply displays a notice. Local original blocks remain available, but full reasoning continuity across models is not guaranteed.
 
@@ -160,7 +191,7 @@ For direct **GPT-6 Astra** conversations with tools, choose OpenAI Responses. As
 | Style | Applies to |
 | --- | --- |
 | OpenAI (`reasoning_effort`) | OpenAI / DeepSeek / Mistral / xAI, etc. |
-| Anthropic (`thinking budget_tokens`) | Claude, MiniMax, Kimi, etc. |
+| Anthropic (model-specific adaptive thinking, toggle, or `budget_tokens`) | Claude, MiniMax, Kimi, etc. |
 | Zai | Zhipu Z.AI |
 | Qwen (`enable_thinking`) | Tongyi Qianwen / Alibaba Cloud Bailian |
 | None | Sends no thinking parameters (some custom endpoints) |
@@ -265,7 +296,7 @@ Image and audio generation share one **provider → models → per-function defa
 
 **Where**: Settings → **Model Configuration** → **Media Generation Models** tab. Click "Add Provider" to connect one of 27 built-in templates in a single click. Templates are grouped by modality and searchable — both brand names and model IDs match, so typing `seedream` or `flux` jumps straight to the right provider:
 
-- **Image**: OpenAI (gpt-image), Google (Gemini / Imagen, supporting image editing and multiple reference images), Fal (Flux), SiliconFlow (Qwen-Image), Zhipu (CogView), Tongyi Wanxiang, Volcengine (Seedream), Tencent Hunyuan, StepFun, Baidu Qianfan, SenseNova, Black Forest Labs (FLUX), Stability AI, Replicate, Together, xAI (Grok Image), Recraft, Kling, iFlytek
+- **Image**: OpenAI (gpt-image), Google (Gemini, supporting image editing and multiple reference images), Fal (Flux), SiliconFlow (Qwen-Image), Zhipu (CogView), Tongyi Wanxiang, Volcengine (Seedream), Tencent Hunyuan, StepFun, Baidu Qianfan, SenseNova, Black Forest Labs (FLUX), Stability AI, Replicate, Together, xAI (Grok Image), Recraft, Kling, iFlytek
 - **Audio**: ElevenLabs (TTS + music + sound effects), MiniMax (speech + music), OpenAI (TTS), Cartesia, Deepgram, Fish Audio, Hume, Volcengine Doubao Speech, Stability (sound effects), Kling
 - **Self-hosted**: "Custom (OpenAI-compatible)"
 
@@ -276,6 +307,8 @@ Just like language models, **one provider takes one key and hosts multiple model
 Provider cards can be dragged to reorder — the order is the priority for automatic selection and failover. ElevenLabs / OpenAI / Cartesia / MiniMax can "Fetch Voices" to list the voices available to your account and set a provider-level default voice; the other speech providers keep a manually entered voice ID. The API key is a password box in the panel; the AI sees it masked when reading it through conversation, and **cannot write provider entries at all**.
 
 ### Step 2: Configure default chains and tool parameters
+
+Media provider connection tests, generation requests, and voice lists do not automatically follow endpoint redirects. If a redirect is reported, confirm the final API address with your provider, update the Base URL, and retry; this response does not mean the connection succeeded.
 
 **Where**: Settings → **Tool Settings** → **Media Generation** tab. Set one default model chain each for **image, speech, music, and sound effects** (a primary model plus optional fallbacks; if the primary fails, it degrades to the next automatically). Leave a chain empty to "follow provider order (auto)" — the hint below shows which model will actually be used.
 
@@ -297,6 +330,8 @@ The image and audio artifacts of the [Design Space](06-design-space.md) run on t
 
 > When adjusting settings through conversation, the AI can only change the default chains and the parameters in the table above; provider entries (including API keys) **can only be changed in the GUI**.
 
+New image templates exclude retired DALL·E 3 and Google Imagen 4 / older Gemini image presets; Google uses `gemini-3.1-flash-image` / `gemini-3-pro-image`. Choose replacements for existing configurations according to your provider’s current availability. GPT Image 1 shuts down on October 23, 2026; new OpenAI image templates now offer only GPT Image 2. Saved configurations are not migrated automatically; check replacement models and required parameters before the deadline. Direct OpenAI chat templates also stop recommending `o1` / `o1-pro` / `o3-mini` / `o4-mini`, which retire on the same date, and remove the already retired `o3-deep-research` / `o4-mini-deep-research` presets. Adjust existing models and default chains yourself. Catalog maintenance does not establish actual image quality.
+
 ---
 
 ## 2.13 Web search and web fetch
@@ -305,11 +340,19 @@ The image and audio artifacts of the [Design Space](06-design-space.md) run on t
 
 Configure search providers for the `web_search` tool in conversations.
 
-**Where**: Settings → **Web Search** panel. 9 providers can be dragged to reorder (the one ranked first is the primary; the others that are enabled serve as fallbacks):
+**Where**: Settings → **Web Search** panel. 10 search options can be dragged to reorder (the one ranked first is the primary; the others that are enabled serve as fallbacks):
 
-- **Free, no key needed**: DuckDuckGo (marked "limited reliability")
+- **Free, no key needed**: Free multi-engine search and DuckDuckGo (both marked "limited reliability")
 - **Self-hosted**: SearXNG (fill in the instance URL; includes one-click Docker deployment)
 - **Key required**: Tavily (recommended globally), Bocha (recommended domestically), Brave, Perplexity, Google CSE, Grok, Kimi
+
+New installations enable **Free multi-engine search** by default: Brave web search first, 360 Search if Brave fails or returns no usable results, then DuckDuckGo and other enabled providers in order. No API key, Python runtime, or extra deployment is needed. Existing configurations keep their provider order and append the new option as a fallback when DuckDuckGo is enabled. Otherwise the added option stays disabled; you can enable it manually and drag it to the top. Disabling every provider also prevents execution, including calls made with a stale tool definition.
+
+This native implementation takes inspiration from DDGS's multi-engine fallback and does not run the original Python DDGS package. Keyless access cannot guarantee availability: upstream rate limits, network restrictions, and page changes can still cause failures. Country and language filters are applied on a best-effort basis according to upstream support; an explicit freshness filter prevents fallback to 360 Search, which does not support it.
+
+Kimi search uses the domestic standalone Basic REST API with your existing key. Each request returns up to 10 structured links and snippets without asking a chat model to generate search JSON or fetching full page content. Basic does not support country, language, or recency filters; when requested, Hope reports the limitation and tries subsequent enabled providers instead of silently dropping filters. The published billing rule charges successful requests with nonempty results; actual account charges and search quality still require verification.
+
+When running `hope-agent server setup`, the search-provider step also offers Free multi-engine search without asking for credentials. New configurations select it by default; existing configurations select their first enabled provider, and the order changes only after you confirm a choice.
 
 | Advanced setting | What it does |
 | --- | --- |

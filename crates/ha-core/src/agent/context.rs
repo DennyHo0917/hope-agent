@@ -2090,6 +2090,17 @@ impl AssistantAgent {
     /// back to the conversation model using the same independent summarizer
     /// request shape and bounded retry policy.
     async fn summarize_with_model(&self, prompt: &str) -> Result<String> {
+        if self.compact_config.summary_reasoning_effort.is_some()
+            && self
+                .compact_config
+                .effective_summarization_model_ref()
+                .is_some()
+            && self.compaction_provider.is_none()
+        {
+            return Err(crate::failover::ProviderRequestContractError(
+                "The configured summary model is unavailable while a reasoning override is selected. Existing history is preserved; choose an available summary model or restore the default policy.".into(),
+            ).into());
+        }
         // Try pluggable CompactionProvider first (if configured)
         if let Some(ref provider) = self.compaction_provider {
             app_info!(
@@ -2106,6 +2117,9 @@ impl AssistantAgent {
                     match crate::context_compact::validate_summarization_output(&summary) {
                         Ok(()) => return Ok(summary),
                         Err(error) => {
+                            if self.compact_config.summary_reasoning_effort.is_some() {
+                                return Err(summary_policy_failure());
+                            }
                             app_warn!(
                                 "agent",
                                 "summarize",
@@ -2122,6 +2136,9 @@ impl AssistantAgent {
                         .is_terminal()
                     {
                         return Err(e);
+                    }
+                    if self.compact_config.summary_reasoning_effort.is_some() {
+                        return Err(summary_policy_failure());
                     }
                     app_warn!(
                         "agent",
@@ -2151,13 +2168,17 @@ impl AssistantAgent {
                 self.user_agent.clone(),
                 format!("conversation model {}", self.provider.model()),
                 self.context_window,
-            );
+            )
+            .with_summary_reasoning_effort(self.compact_config.summary_reasoning_effort);
             return crate::context_compact::CompactionProvider::summarize(
                 &provider,
                 prompt,
                 self.compact_config.summary_max_tokens,
             )
-            .await;
+            .await
+            .map_err(|error| {
+                summary_error_for_policy(self.compact_config.summary_reasoning_effort, error)
+            });
         }
 
         // Legacy/test constructors without provider metadata cannot safely
@@ -2176,9 +2197,14 @@ impl AssistantAgent {
             &self.user_agent,
             prompt,
             self.compact_config.summary_max_tokens,
+            self.compact_config.summary_reasoning_effort,
+            &self.thinking_style,
             Some(usage_event),
         )
         .await
+        .map_err(|error| {
+            summary_error_for_policy(self.compact_config.summary_reasoning_effort, error)
+        })
     }
 
     /// Build `LlmProvider` from config + optional [`AuthProfile`] override.
@@ -2459,9 +2485,24 @@ impl AssistantAgent {
                 // Streamed thinking is still surfaced to the UI live; it just
                 // never persists into history.
                 "reasoning" => continue,
-                // Native Responses API items — pass through
+                "function_call" => {
+                    let mut call = item.clone();
+                    // Older synthesized history confused the invocation ID
+                    // with the optional provider item ID. Remove only that
+                    // invalid duplicate; keep genuine provider envelopes.
+                    if let Some(id) = item.get("id").and_then(|id| id.as_str()) {
+                        if !id.starts_with("fc")
+                            && item.get("call_id").and_then(|id| id.as_str()) == Some(id)
+                        {
+                            if let Some(fields) = call.as_object_mut() {
+                                fields.remove("id");
+                            }
+                        }
+                    }
+                    result.push(call);
+                }
+                // Other native Responses API items — pass through
                 "message"
-                | "function_call"
                 | "function_call_output"
                 | "tool_search_call"
                 | "tool_search_output"
@@ -2594,6 +2635,29 @@ impl AssistantAgent {
 
 // ── Standalone summarization helpers ─────────────────────────────────
 
+fn summary_policy_failure() -> anyhow::Error {
+    crate::failover::ProviderRequestContractError(
+        "Summary generation failed with the explicit reasoning override. Existing history is preserved; retry manually or change the summary policy. No automatic model fallback was attempted."
+            .into(),
+    )
+    .into()
+}
+
+fn summary_error_for_policy(
+    effort: Option<crate::context_compact::SummaryReasoningEffort>,
+    error: anyhow::Error,
+) -> anyhow::Error {
+    if effort.is_some()
+        && !crate::failover::classify_error_with_evidence(&error)
+            .0
+            .is_terminal()
+    {
+        summary_policy_failure()
+    } else {
+        error
+    }
+}
+
 /// Direct one-shot summarization call (decoupled from AssistantAgent).
 /// Used by both the default fallback path and `DedicatedModelProvider`.
 ///
@@ -2604,14 +2668,17 @@ pub(crate) async fn summarize_direct(
     user_agent: &str,
     prompt: &str,
     max_tokens: u32,
+    reasoning_effort: Option<crate::context_compact::SummaryReasoningEffort>,
+    thinking_style: &crate::provider::ThinkingStyle,
     usage_event: Option<crate::model_usage::ModelUsageEvent>,
 ) -> Result<String> {
     use crate::context_compact::SUMMARIZATION_SYSTEM_PROMPT;
 
     let started = std::time::Instant::now();
-    let client = crate::provider::apply_proxy(reqwest::Client::builder().user_agent(user_agent))
-        .build()
-        .map_err(|e| anyhow::anyhow!("HTTP client error: {}", e))?;
+    let client =
+        crate::provider::apply_model_proxy(reqwest::Client::builder().user_agent(user_agent))
+            .build()
+            .map_err(|e| anyhow::anyhow!("HTTP client error: {}", e))?;
 
     let result = provider
         .as_adapter()
@@ -2620,8 +2687,15 @@ pub(crate) async fn summarize_direct(
             OneShotRequest {
                 instruction: prompt,
                 max_tokens,
-                mode: OneShotMode::Independent {
-                    system: SUMMARIZATION_SYSTEM_PROMPT,
+                mode: match reasoning_effort {
+                    Some(effort) => OneShotMode::Summary {
+                        system: SUMMARIZATION_SYSTEM_PROMPT,
+                        effort,
+                        thinking_style,
+                    },
+                    None => OneShotMode::Independent {
+                        system: SUMMARIZATION_SYSTEM_PROMPT,
+                    },
                 },
                 user_content: None,
             },
@@ -2679,6 +2753,7 @@ pub struct DedicatedModelProvider {
     user_agent: String,
     display_name: String,
     context_window: u32,
+    summary_reasoning_effort: Option<crate::context_compact::SummaryReasoningEffort>,
 }
 
 impl DedicatedModelProvider {
@@ -2697,7 +2772,16 @@ impl DedicatedModelProvider {
             user_agent,
             display_name,
             context_window,
+            summary_reasoning_effort: None,
         }
+    }
+
+    pub fn with_summary_reasoning_effort(
+        mut self,
+        effort: Option<crate::context_compact::SummaryReasoningEffort>,
+    ) -> Self {
+        self.summary_reasoning_effort = effort;
+        self
     }
 }
 
@@ -2710,6 +2794,8 @@ impl crate::context_compact::CompactionProvider for DedicatedModelProvider {
         let model_id = self.model_id.as_str();
         let user_agent = self.user_agent.as_str();
         let session_id_for_usage = self.session_id.clone();
+        let reasoning_effort = self.summary_reasoning_effort;
+        let thinking_style = provider_config.effective_thinking_style_for_model(model_id);
 
         execute_with_failover(
             provider_config,
@@ -2721,6 +2807,7 @@ impl crate::context_compact::CompactionProvider for DedicatedModelProvider {
                 // the `.await` inside build_llm_provider (Codex branch).
                 let profile_owned = profile.cloned();
                 let session_id_for_usage = session_id_for_usage.clone();
+                let thinking_style = thinking_style.clone();
                 async move {
                     let provider = AssistantAgent::build_llm_provider(
                         provider_config,
@@ -2737,8 +2824,16 @@ impl crate::context_compact::CompactionProvider for DedicatedModelProvider {
                     usage_event.provider_name = Some(provider_config.name.clone());
                     usage_event.model_id = Some(model_id.to_string());
                     usage_event.session_id = Some(session_id_for_usage);
-                    summarize_direct(&provider, user_agent, prompt, max_tokens, Some(usage_event))
-                        .await
+                    summarize_direct(
+                        &provider,
+                        user_agent,
+                        prompt,
+                        max_tokens,
+                        reasoning_effort,
+                        &thinking_style,
+                        Some(usage_event),
+                    )
+                    .await
                 }
             },
         )
@@ -3085,11 +3180,19 @@ mod mid_loop_compaction_tests {
     #[tokio::test]
     async fn mid_loop_compaction_propagates_provider_terminals_without_continuing() {
         use crate::failover::{classify_error_with_evidence, FailoverReason};
-        for reason in [
+        for (reason, summary_reasoning_effort) in [
             FailoverReason::ProviderBlocked,
             FailoverReason::RequestContract,
             FailoverReason::RetryDeferred,
-        ] {
+        ]
+        .into_iter()
+        .flat_map(|reason| {
+            [
+                None,
+                Some(crate::context_compact::SummaryReasoningEffort::None),
+            ]
+            .map(move |effort| (reason, effort))
+        }) {
             let mut agent = AssistantAgent::new_anthropic("test-key");
             agent.context_window = 12_000;
             agent.set_context_engine(Arc::new(ForceTier3Engine));
@@ -3098,6 +3201,7 @@ mod mid_loop_compaction_tests {
                 preserve_recent_rounds: 1,
                 summarization_threshold: 0.71,
                 summary_max_tokens: 256,
+                summary_reasoning_effort,
                 ..Default::default()
             });
             let original = vec![
@@ -3127,6 +3231,38 @@ mod mid_loop_compaction_tests {
             assert_eq!(classify_error_with_evidence(&error).0, reason);
             assert_eq!(canonical, original);
         }
+    }
+
+    #[tokio::test]
+    async fn summary_reasoning_override_does_not_fall_back_from_an_unavailable_model() {
+        let mut agent = AssistantAgent::new_anthropic("synthetic-key");
+        agent.provider = crate::agent::LlmProvider::OpenAIChat {
+            api_key: "synthetic-key".into(),
+            base_url: "unsupported://isolated-fixture".into(),
+            model: "synthetic-model".into(),
+        };
+        agent.set_compact_config(CompactConfig {
+            summary_reasoning_effort: Some(crate::context_compact::SummaryReasoningEffort::None),
+            model_override: Some(crate::provider::ActiveModel {
+                provider_id: "missing-provider".into(),
+                model_id: "missing-model".into(),
+            }),
+            ..Default::default()
+        });
+        let original = vec![json!({"role":"user","content":"preserve the original history"})];
+        agent.set_conversation_history(original.clone());
+        let error = agent
+            .summarize_with_model("synthetic summary prompt")
+            .await
+            .unwrap_err();
+        assert!(error
+            .to_string()
+            .contains("configured summary model is unavailable"));
+        assert_eq!(
+            crate::failover::classify_error_with_evidence(&error).0,
+            crate::failover::FailoverReason::RequestContract
+        );
+        assert_eq!(agent.get_conversation_history(), original);
     }
 
     #[tokio::test]
@@ -3480,6 +3616,44 @@ mod responses_history_tests {
         ]);
         assert_eq!(merged.len(), 1);
         assert!(crate::context_compact::is_side_snapshot(&merged[0]));
+    }
+
+    #[test]
+    fn responses_history_repairs_legacy_call_ids_without_losing_provider_metadata() {
+        let mut legacy = json!({
+            "type": "function_call", "id": "call_old", "call_id": "call_old",
+            "name": "read", "arguments": "{}", "namespace": "files"
+        });
+        crate::context_compact::mark_side_snapshot(&mut legacy);
+        let native = json!({
+            "type": "function_call", "id": "fc_native", "call_id": "call_native",
+            "name": "read", "arguments": "{}", "namespace": "files",
+            "provider_future_field": "keep"
+        });
+        let same_valid_id = json!({
+            "type": "function_call", "id": "fc_legacy", "call_id": "fc_legacy",
+            "name": "read", "arguments": "{}"
+        });
+        let output = json!({
+            "type": "function_call_output", "call_id": "call_old", "output": "done"
+        });
+        let history = vec![
+            legacy.clone(),
+            native.clone(),
+            same_valid_id.clone(),
+            output.clone(),
+        ];
+        let normalized = AssistantAgent::normalize_history_for_responses(&history);
+        legacy.as_object_mut().unwrap().remove("id");
+        assert_eq!(normalized, vec![legacy, native, same_valid_id, output]);
+        assert_eq!(
+            history[0]["id"], "call_old",
+            "input history must stay untouched"
+        );
+        assert_eq!(
+            AssistantAgent::normalize_history_for_responses(&normalized),
+            normalized
+        );
     }
 
     #[test]
