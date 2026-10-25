@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **导航入口文字**：侧栏图标常驻显示文字标签，长名称仍可查看完整提示，小窗口继续通过“更多”访问折叠入口。 (#859)
+
 ### Fixed
 
 - **前端依赖安全维护**：更新图表与 PDF 的 HTML 清洗依赖，并修补本地开发和测试服务器依赖，保留现有渲染与检查规则。 (#853)
