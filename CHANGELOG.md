@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **导航入口文字**：侧栏图标常驻显示文字标签，长名称仍可查看完整提示，小窗口继续通过“更多”访问折叠入口。 (#859)
+- **Gemini 4 Argon 模型**：在 Google 模板中加入 GA 稳定型号，并适配 OpenAI Chat 兼容端点的推理档位映射与当前官方价格；同步说明同步输出上限和计划可用性。 (#841)
+- **Codex GPT-6.1 Sol 上下文**：按最新 Work/Codex 官方说明将 OAuth 新预设预算更新为 500K；其它模型、API 上下文及已保存的自定义上下文保持各自边界。 (#841)
 
 ### Fixed
 
