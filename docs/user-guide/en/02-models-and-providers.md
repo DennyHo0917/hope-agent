@@ -130,6 +130,8 @@ When automatically switching models across protocols (for example, when the prim
 
 Gateway presets also cover current stable models: OpenRouter adds the four GPT-6 models, Claude Opus / Sonnet / Haiku 5.5, Grok 4.7, GLM 5.3 / Flash, DeepSeek V4.1 Flash, MiniMax M3, and Kimi K3. Prices estimate the public catalog's base route rates; routing, caching, and long-input tiers may change the bill. A model's file or video capability does not mean Hope supports those inputs.
 
+The Mistral built-in template now includes GA Z.ai GLM 5.3 Flash (`zai-glm-5-3-flash`) through the existing Chat Completions API, with text, image, and function calling support. Its preset has a 1M context window and 128K maximum output. Published standard rates are $0.15/M input and $0.50/M output tokens; cached input is $0.03/M. Hope's current cost fields do not model the cache discount separately, so estimates use the standard input rate.
+
 Together adds GLM 5.3 / Flash, Kimi K3, MiniMax M3, and DeepSeek V4.1 Flash with channel-specific context and prices and a conservative **16K output preset**, not a vendor hard limit. Only text input is declared. These models use default reasoning without the GPT-OSS-only `reasoning_effort`; Together's reasoning toggle is not integrated.
 
 MiniMax M3 keeps its default thinking off when effort is unset. Selecting an effort enables adaptive thinking; explicitly choosing off sends the disabled setting.

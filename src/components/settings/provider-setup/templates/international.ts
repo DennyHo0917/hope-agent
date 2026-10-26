@@ -751,6 +751,17 @@ export const internationalTemplates: ProviderTemplate[] = [
     requiresApiKey: true,
     models: [
       {
+        id: "zai-glm-5-3-flash",
+        name: "Z.ai GLM 5.3 Flash",
+        inputTypes: ["text", "image"],
+        contextWindow: 1_000_000,
+        maxTokens: 128_000,
+        reasoning: false,
+        thinkingStyle: "none",
+        costInput: 0.15,
+        costOutput: 0.5,
+      },
+      {
         id: "mistral-medium-3-5",
         name: "Mistral Medium 3.5",
         inputTypes: ["text", "image"],

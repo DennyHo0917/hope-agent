@@ -130,6 +130,8 @@ API 类型告诉 Hope Agent 用哪套协议和服务商通信。**用内置模�
 
 聚合渠道也提供当前稳定模型：OpenRouter 新增 GPT-6 四项、Claude Opus / Sonnet / Haiku 5.5、Grok 4.7、GLM 5.3 / Flash、DeepSeek V4.1 Flash、MiniMax M3 和 Kimi K3。价格按公开目录的基础路由报价估算，实际账单可能受路由、缓存与长输入分档影响；模型允许的文件或视频输入不代表 Hope 已支持。
 
+Mistral 内置模板新增 GA 的 Z.ai GLM 5.3 Flash（模型 ID `zai-glm-5-3-flash`），走现有 Chat Completions 接口，支持文本、图片和函数调用；预设上下文 1M、最大输出 128K。公开标准价为输入 $0.15、输出 $0.50 / 百万 token；缓存输入为 $0.03 / 百万 token。当前成本字段不单独计算缓存折扣，估算仍按标准输入价计。
+
 Together 新增 GLM 5.3 / Flash、Kimi K3、MiniMax M3 和 DeepSeek V4.1 Flash，采用渠道公布的上下文与单价、保守 **16K 输出预设**（不是厂商硬上限）。当前只声明文本输入；沿用渠道默认推理，不发送仅适用于 GPT-OSS 的 `reasoning_effort`，未接入 Together 的推理开关。
 
 MiniMax M3 未设置思考强度时保留官方默认关闭，选择强度才启用自适应思考，明确关闭则发送关闭参数。
