@@ -129,6 +129,8 @@ flowchart TD
 
 模板里最值得记的是**协议归类**——大多数国内/聚合服务商都用 `openai-chat`（OpenAI 兼容），少数走原生 `anthropic`（MiniMax、Kimi Coding、Synthetic 等），OpenAI 官方与 GitHub Copilot 走 `openai-responses`。推理格式则跟着服务商走：智谱标 `zai`、通义/百炼标 `qwen`、Anthropic 系标 `anthropic`，其余多为 `openai`。这套"模板 → ApiType → ThinkingStyle"的映射就是新增服务商时要填对的三件事。
 
+Unbiased 直连模板使用 `openai-chat` 和 `https://api.unbiased.ai/v1`，复用现有流式、工具与用量路径。2026-10-10 已鉴权的 `GET /v1/models` 返回 `pareto`、`pareto-26.9` 和 `pareto-26.10-preview`：前两者上下文为 `262_144`，单价为 USD 每百万 Token 输入 `2.5`、输出 `7.5`；预览版上下文为 `1_048_576`，单价为 `0.8` / `3.2`。模板按直连目录分别填价；[官网统一报价](https://unbiased.ai/pricing/)为预览版，不能套到仍指向 26.9 的 `pareto`。目录返回的上下文为服务声明，未经极限验证；最大输出 `8_192` 是可调整的保守配置值。[官方 API 文档](https://unbiased.ai/developers/)仍称模型发现尚未实现、只推荐 `pareto`，并警告未知 ID 可能被按 Pareto 服务并计费，因此仅内置实际目录确认的 ID。模板显式使用 `thinkingStyle: none`，不发送未经文档确认的推理参数；输入支持文本与图片。
+
 #### 2026-10-12 稳定模型适配
 
 - Anthropic 直连模板新增 `claude-haiku-5-5`（1,000,000 上下文、128,000 输出，文本/图片输入）。主轮沿现有适配器使用自适应思考并请求摘要思考文本，单次请求显式设置默认自适应模式和前缀绑定，并保留签名、遮蔽块和前缀绑定的丢块策略；关闭思考时只发送 `thinking.type=disabled`，移除残留 effort，不传采样参数。Haiku 5.5 的 `xhigh` 保留原值，`minimal` 映射到 `low`，其它 Claude 5 映射不变。官方第三方兼容端点不继承直连策略。[迁移指南](https://platform.claude.com/docs/en/models/haiku-5-5/migration-guide)、[推理档位](https://platform.claude.com/docs/en/build-with-claude/effort)
