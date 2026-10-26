@@ -1,5 +1,21 @@
 # 行动卡统一迭代台账
 
+## 2026-10-26：依赖主责接续 xAI 临期质量预设
+
+精确 prepare 基线 `fe9dee8d0bbad6129fc9717481d9875330e4e617`，运行
+`20261026T033506-ed0c0c2e`，取得自有 writer lease。完整分页读取 20 个 open PR，
+没有依赖机器人 PR；六组雷达完整 JSON 校验通过，LLM 专项已更新至 10-26，
+已交付的 #841 与 #861 范围沿原主责核对，不重复实施。
+
+本轮唯一维护包 [PR #862](https://github.com/shiwenwen/hope-agent/pull/862) 沿 `embedding:A2` / `02-A3`：11-02 前清理新建 xAI 模板的质量别名，
+显式 `grok-imagine-image-2.0` + `quality=low`，维持 1.0 首选；现有 schema 和适配器
+已支持该参数，补配置序列化至实际 profile 请求体的离线回归。详细边界、替代与
+回退见[媒体生成合同](../infra/media-generation.md#xai-质量别名的临期目录维护2026-10-26)。
+不改已存配置，不启用未实现的编辑协议；真实账号、付费、画质与账单验收仍待独立合同。
+首次普通 hooks 全部通过，未使用跳过标志；最终提交的精确 head CI、审查线程、
+保护合入与远端读回齐全后才记录交付。
+ZIP、zbus、Zod/Undici 与托管 Chrome 继续原卡和主责，本轮未实施。
+
 ## 2026-10-25：接续 Signal 交付与前沿增量
 
 本轮续跑原受管工作树与 [PR #858](https://github.com/shiwenwen/hope-agent/pull/858)，保留原基线 `1346cf258073ff6c171eece9f2a8f3f6863bf347`；最新 main `2e79817d8a646c2c71cafa9855af6ff43a896f32`，核验 `2026-10-25T10:30:52.396433+00:00`，自有 writer lease 已取得。旧头 `42eeb84e` 的9项CI成功，但独立复审仍运行，且新 main 造成两处文档冲突；本轮保留双方内容并同步已核验 main，新头仍须普通 hooks、精确头独立复审、必需CI、已解决线程和保护合并回读。Signal 实现范围不扩大，不用旧头审查或CI代替新头门禁。

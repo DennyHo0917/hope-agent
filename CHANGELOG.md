@@ -16,6 +16,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **xAI 图像质量预设**：新建模板以显式 Imagine 2.0 低档替换临期质量别名，保留 1.0 首选和已保存配置。 (#862)
+
 - **Signal 接收可靠性**：修复中文和 emoji 跨网络分片时损坏的问题，支持多行事件、限制异常载荷，并让停止账号及时取消连接与排队等待。 (#858)
 - **证书信任安全维护**：修补共享证书验证器与随包根证书，拒绝已不受信任的 emSign 中间证书路径。 (#860)
 
