@@ -38,6 +38,10 @@ MiniMax M3 uses the existing Anthropic compatible connection, accepts images, su
 
 New direct Google templates exclude Gemini 3.7 / 3.5 Flash, which redirect to newer models, and Gemini 2.5 models, which are restricted to users who previously used them. Choose stable Gemini 3.8 Flash or 3.6 Flash. Existing connections and other gateway candidates remain available.
 
+The Google template now offers the GA stable model `gemini-4-argon`. Hope uses it through Gemini's OpenAI Chat compatible endpoint and declares text/image input, a unified 1,048,576-token input/output context, a 65,536 synchronous output limit, function calling, and streaming. Official compatibility maps reasoning effort to `low / medium / high`; `minimal` maps to `low`, while `xhigh` and `max` map to `high`. An unset or explicitly disabled reasoning parameter is omitted, so Google applies its `medium` default; this does not turn off model reasoning. Hope does not call the Interactions API background path for long decode beyond 65,536 tokens, and does not declare audio, video, or PDF input support.
+
+Gemini 4 Argon Standard pricing is currently $2/$10 per million input/output tokens through November 30, 2026, and becomes $4/$20 on December 1. The model is unavailable on the Free tier and Google AI Pro plan. The template and dashboard store only the current base rate; check Google for cache discounts, other inference tiers, and actual billing. [Model limits](https://ai.google.dev/gemini-api/docs/models/gemini-4-argon), [OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai), [pricing](https://ai.google.dev/gemini-api/docs/pricing).
+
 **Where**: Settings → **Model Configuration** → **Providers** tab → click "**Add Provider**" in the top right.
 
 The first page of the add wizard offers five paths:
@@ -53,6 +57,8 @@ The first page of the add wizard offers five paths:
 Click a template (such as Anthropic, OpenAI, DeepSeek, or Tongyi Qianwen) to open its configuration page and fill in the **API key** (for some local / unauthenticated endpoints the key is marked "optional"). You can click "Test connection" to verify, then "Done" to save. The template has already pre-filled the endpoint address, API type, thinking style, and model list — usually you don't need to change anything.
 
 After you add a provider, the system automatically sets its first model as the current default model, so you can start chatting right away.
+
+**Unbiased / Pareto**: Choose the **Unbiased** template and enter the API key issued by the platform for text and image conversations. The template uses OpenAI Chat and `https://api.unbiased.ai/v1`, with stable `pareto`, pinned `pareto-26.9`, and `pareto-26.10-preview` presets. In the direct catalog verified on October 10, 2026, stable models have a `262,144` context window and input / output prices of `$2.50 / $7.50` per million tokens; the preview has `1,048,576` and `$0.80 / $3.20`. The maximum output of `8,192` is an adjustable conservative setting. Use the preset IDs: the API currently accepts unknown IDs, so a typo may still incur charges. The API is in beta; use the actual endpoint catalog for availability and pricing, as the [official documentation](https://unbiased.ai/developers/) and [pricing page](https://unbiased.ai/pricing/) may not yet reflect every model.
 
 > **DeepSeek vision model**: New direct DeepSeek providers can select **DeepSeek V4.1 Flash**. It supports image input, a million-token context window, and reasoning. Existing DeepSeek configurations are not rewritten automatically; add model ID `deepseek-flash` manually when needed, or create the connection again.
 
@@ -126,6 +132,8 @@ When automatically switching models across protocols (for example, when the prim
 
 Gateway presets also cover current stable models: OpenRouter adds the four GPT-6 models, Claude Opus / Sonnet / Haiku 5.5, Grok 4.7, GLM 5.3 / Flash, DeepSeek V4.1 Flash, MiniMax M3, and Kimi K3. Prices estimate the public catalog's base route rates; routing, caching, and long-input tiers may change the bill. A model's file or video capability does not mean Hope supports those inputs.
 
+The Mistral built-in template now includes GA Z.ai GLM 5.3 Flash (`zai-glm-5-3-flash`) through the existing Chat Completions API, with text, image, and function calling support. Its preset has a 1M context window and 128K maximum output. Published standard rates are $0.15/M input and $0.50/M output tokens; cached input is $0.03/M. Hope's current cost fields do not model the cache discount separately, so estimates use the standard input rate.
+
 Together adds GLM 5.3 / Flash, Kimi K3, MiniMax M3, and DeepSeek V4.1 Flash with channel-specific context and prices and a conservative **16K output preset**, not a vendor hard limit. Only text input is declared. These models use default reasoning without the GPT-OSS-only `reasoning_effort`; Together's reasoning toggle is not integrated.
 
 MiniMax M3 keeps its default thinking off when effort is unset. Selecting an effort enables adaptive thinking; explicitly choosing off sends the disabled setting.
@@ -149,7 +157,7 @@ hope-agent auth codex logout         # Sign out (deletes the Codex provider and 
 
 - The specific model used after signing in can be switched in Settings; the default is the tier available across all account levels.
 - The built-in Codex catalog includes `gpt-6-astra`, `gpt-6.1-sol`, `gpt-6-sol`, and `gpt-6-luna`. Upgrades backfill missing entries while preserving selected models, custom parameters, and disabled providers. Access still depends on your ChatGPT plan, workspace settings, and rollout.
-- Codex GPT-6 presets use the official bundled catalog's **272K** context, separately from the OpenAI API's **1.05M**. The existing **16K output reservation** is not a server output limit. GPT-6 reasoning ranges from `low` to `max`; `minimal` and “off” map to `low` on this endpoint, while “off” still hides reasoning output. An unset effort preserves the model default. `Ultra` is Codex task delegation; Hope does not send it as a reasoning parameter.
+- The Codex OAuth preset for `gpt-6.1-sol` uses the **500K** default context documented for ChatGPT Work and Codex. Other GPT-6 OAuth presets retain the official bundled catalog's **272K** context, separately from the OpenAI API catalog's **1.05M**. The upstream Codex catalog also lists an 872K maximum window; Hope does not use that as its default budget. The existing **16K output reservation** is not a server output limit. GPT-6 reasoning ranges from `low` to `max`; `minimal` and “off” map to `low` on this endpoint, while “off” still hides reasoning output. An unset effort preserves the model default. `Ultra` is Codex task delegation; Hope does not send it as a reasoning parameter. Plan, workspace, and rollout eligibility remain server-controlled.
 - New defaults omit retired GPT-5.4 and GPT-5.3-Codex-Spark, plus GPT-5.5 retiring from Codex on 2026-10-14. Saved configurations remain; GPT-5.5 API presets are unaffected by this Codex retirement.
 - Codex credentials are stored only on this machine (`~/.hope-agent/credentials/auth.json`) and are never written to logs.
 - Codex sign-in and the account sign-in for [11 · MCP: connecting external tools](11-connect-and-extend.md#111-mcp-connecting-external-tools) are two completely independent mechanisms that do not affect each other.
@@ -297,8 +305,11 @@ Image and audio generation share one **provider → models → per-function defa
 **Where**: Settings → **Model Configuration** → **Media Generation Models** tab. Click "Add Provider" to connect one of 27 built-in templates in a single click. Templates are grouped by modality and searchable — both brand names and model IDs match, so typing `seedream` or `flux` jumps straight to the right provider:
 
 - **Image**: OpenAI (gpt-image), Google (Gemini, supporting image editing and multiple reference images), Fal (Flux), SiliconFlow (Qwen-Image), Zhipu (CogView), Tongyi Wanxiang, Volcengine (Seedream), Tencent Hunyuan, StepFun, Baidu Qianfan, SenseNova, Black Forest Labs (FLUX), Stability AI, Replicate, Together, xAI (Grok Image), Recraft, Kling, iFlytek
+
 - **Audio**: ElevenLabs (TTS + music + sound effects), MiniMax (speech + music), OpenAI (TTS), Cartesia, Deepgram, Fish Audio, Hume, Volcengine Doubao Speech, Stability (sound effects), Kling
 - **Self-hosted**: "Custom (OpenAI-compatible)"
+
+New xAI image templates keep Grok Imagine Image first and replace the old quality alias with the low-quality setting of Grok Imagine Image 2.0. Saved models and default chains are not rewritten. If you still use `grok-imagine-image-quality`, review the replacement model and pricing before its November 2, 2026 retirement. The current xAI integration supports generation only, without reference-image editing; actual image quality and billing for the new model have not been validated.
 
 A few providers have credential formats worth noting: Kling and Volcengine Doubao Speech accept both the current and the legacy auth scheme — entering `ak:sk` (Kling) or `app_id:access_key` (Doubao Speech) signs requests the legacy way. iFlytek needs the `appid:apikey:apisecret` triple.
 

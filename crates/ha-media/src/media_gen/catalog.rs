@@ -318,7 +318,8 @@ fn together_image_caps(edit: bool) -> ImageModelCaps {
 fn xai_image_caps() -> ImageModelCaps {
     ImageModelCaps {
         max_n: 10,
-        // xAI defines no size/quality/style knobs at all.
+        // xAI uses aspect ratio + resolution rather than pixel size.
+        // Imagine 2.0 quality is passed through model-level `extra`.
         supports_size: false,
         supports_aspect_ratio: true,
         supports_resolution: true,
@@ -895,10 +896,10 @@ pub fn media_provider_templates() -> Vec<MediaProviderTemplate> {
                     &[],
                 ),
                 img(
-                    "grok-imagine-image-quality",
-                    "Grok Imagine Image Quality",
+                    "grok-imagine-image-2.0",
+                    "Grok Imagine Image 2.0 (low)",
                     xai_image_caps(),
-                    &[],
+                    &[("quality", "low")],
                 ),
             ],
         },

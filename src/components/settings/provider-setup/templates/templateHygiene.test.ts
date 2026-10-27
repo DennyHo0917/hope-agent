@@ -79,6 +79,24 @@ describe("provider template lifecycle hygiene", () => {
     ).toBe(false)
   })
 
+  it("offers GA Z.ai GLM 5.3 Flash through Mistral Chat Completions", () => {
+    const mistral = PROVIDER_TEMPLATES.find((provider) => provider.key === "mistral")!
+    expect(mistral).toMatchObject({
+      apiType: "openai-chat",
+      baseUrl: "https://api.mistral.ai/v1",
+    })
+    expect(mistral.models.find((model) => model.id === "zai-glm-5-3-flash")).toMatchObject({
+      name: "Z.ai GLM 5.3 Flash",
+      inputTypes: ["text", "image"],
+      contextWindow: 1_000_000,
+      maxTokens: 128_000,
+      reasoning: false,
+      thinkingStyle: "none",
+      costInput: 0.15,
+      costOutput: 0.5,
+    })
+  })
+
   it("keeps deprecated and existing-user-only Gemini models out of new direct templates", () => {
     const google = PROVIDER_TEMPLATES.find((provider) => provider.key === "google-gemini")!
     for (const id of [
@@ -93,6 +111,14 @@ describe("provider template lifecycle hygiene", () => {
         id,
       ).toBe(false)
     }
+    expect(google.models.find((model) => model.id === "gemini-4-argon")).toMatchObject({
+      inputTypes: ["text", "image"],
+      contextWindow: 1_048_576,
+      maxTokens: 65_536,
+      reasoning: true,
+      costInput: 2,
+      costOutput: 10,
+    })
     expect(google.models.some((model) => model.id === "gemini-3.8-flash")).toBe(true)
     expect(google.models.some((model) => model.id === "gemini-3.6-flash")).toBe(true)
     expect(
